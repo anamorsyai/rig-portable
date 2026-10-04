@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# oc-sess — list / resume Claude Code sessions.
+#   oc-sess                 list recent sessions (newest first)
+#   oc-sess resume [n|id]   resume session n from the list (default 1 = newest)
+#   oc-sess show [n|id]     print first user message of a session
+set -u
+DIR="$HOME/.claude/projects"
+# find enumerates (portable), stat -c gives mtime epoch, sorted newest-first.
+# Top-level session files live under <proj>/<session-id>.jsonl (depth 2).
+mapfile -t FILES < <(find "$DIR" -maxdepth 2 -type f -name '*.jsonl' -print0 2>/dev/null | xargs -0 -r stat -c '%Y %n' 2>/dev/null | sort -rn | sed 's/^[0-9]* //')
+[ "${#FILES[@]}" -eq 0 ] && { echo "no sessions found"; exit 0; }
+
+meta() { # file -> "id | mtime | title"
+  local f="$1" id
+  id=$(basename "$f" .jsonl)
+  title=$(python3 - "$f" <<'EOF'
+import sys, json
+f = sys.argv[1]
+try:
+    with open(f, "r", encoding="utf-8", errors="replace") as fh:
+        lines = [ln for ln in fh if ln.strip()]
+    for ln in lines[:40]:
+        try:
+            o = json.loads(ln)
+        except Exception:
+            continue
+        if o.get("type") != "user":
+            continue
+        c = o.get("message", {}).get("content")
+        if isinstance(c, str):
+            t = c
+        elif isinstance(c, list):
+            t = " ".join(b.get("text", "") for b in c if isinstance(b, dict) and b.get("type") == "text")
+        else:
+            t = ""
+        t = " ".join(t.split())
+        print(t[:70] if t else "(no prompt)")
+        sys.exit(0)
+    print("(no prompt)")
+except Exception:
+    print("(no prompt)")
+EOF
+)
+  echo "$id | $(date -r "$f" '+%m-%d %H:%M') | $title"
+}
+
+case "${1:-list}" in
+  list|"")
+    for i in "${!FILES[@]}"; do
+      printf "%2d) %s\n" $((i+1)) "$(meta "${FILES[$i]}")"
+    done ;;
+  resume|show)
+    SEL="${2:-1}"
+    if [[ "$SEL" =~ ^[0-9]+$ ]]; then
+      [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#FILES[@]}" ] || { echo "bad index (1-${#FILES[@]})"; exit 1; }
+      F="${FILES[$((SEL-1))]}"
+    else
+      F=""; for c in "${FILES[@]}"; do [[ "$c" == *"$SEL"* ]] && { F="$c"; break; }; done
+      [ -z "$F" ] && { echo "no session matching '$SEL'"; exit 1; }
+    fi
+    ID=$(basename "$F" .jsonl)
+    if [ "${1:-}" = "show" ]; then meta "$F"
+    else exec claude --resume "$ID"; fi ;;
+  *) echo "usage: oc-sess [list|resume|show] [n|id]" ;;
+esac

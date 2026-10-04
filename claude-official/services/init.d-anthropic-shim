@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+
+name="anthropic-shim"
+description="Anthropic->OpenAI translation shim (Go) for Claude Code (thinking + streaming + failover)"
+[ -f /etc/conf.d/anthropic-shim ] && . /etc/conf.d/anthropic-shim
+command="${SHIM_BIN:-/root/workspaces/rig-portable/claude-official/anthropic-shim}"
+command_background="yes"
+pidfile="/run/anthropic-shim.pid"
+output_log="/var/log/shim.log"
+error_log="/var/log/shim.log"
+
+start_pre() {
+	[ -x "$command" ] || { eerror "shim binary not found/executable: $command"; return 1; }
+	command_background="yes"
+	return 0
+}
+
+start_post() { chmod 640 /var/log/shim.log 2>/dev/null || true; }
+
+depend() {
+	need net
+	use logger
+}

@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "burp": {
+      "type": "http",
+      "url": "http://127.0.0.1:9876"
+    },
+    "caido": {
+      "type": "http",
+      "url": "http://127.0.0.1:3333/mcp"
+    },
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "mcp-server-sequential-thinking",
+      "args": []
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "playwright-mcp",
+      "args": [
+        "--executable-path=/usr/bin/chromium-browser",
+        "--no-sandbox",
+        "--headless"
+      ]
+    },
+    "browser-control": {
+      "command": "node",
+      "args": [
+        "/root/browser-control-mcp/mcp-server/dist/server.js"
+      ],
+      "env": {
+        "EXTENSION_SECRET": "3b8aac9d-d513-4874-981e-0406ac644994",
+        "EXTENSION_PORT": "8089"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+# Rig-local git worktrees / session junk — never commit.
+# These are ephemeral parallel checkouts managed by the rig; the only
+# durable rig lives in the main checkout + origin.
+.claude/
+
+# Local-only secrets drift / scratch
+.secrets.local
+*.orig
+*.before-stylefix
+*.worktree.orig
+
+# Built shim binary — regenerated from anthropic-shim.go by install-new-device.sh
+# (go build -o anthropic-shim anthropic-shim.go). Never commit the 9.8MB binary.
+claude-official/anthropic-shim

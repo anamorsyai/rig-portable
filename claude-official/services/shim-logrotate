@@ -1,0 +1,20 @@
+#!/bin/sh
+# anthropic-shim: size-based log rotation (runs daily via periodic)
+# NOTE: we COPY to the dated name then TRUNCATE the live log IN PLACE with
+# '> LOG', rather than 'mv'. The running shim keeps its open fd on the same
+# inode; 'mv' would rename the inode out from under it so new lines keep
+# landing in the rotated file and the fresh log stays empty.
+LOG=/var/log/shim.log
+MAX_BYTES=20971520   # 20 MB
+KEEP_DAYS=14
+[ -f "$LOG" ] || exit 0
+SIZE=$(wc -c < "$LOG" 2>/dev/null || echo 0)
+case "$SIZE" in ''|*[!0-9]*) SIZE=0;; esac
+if [ "$SIZE" -gt "$MAX_BYTES" ]; then
+    ROT="$LOG.$(date +%Y%m%d)"
+    cp -p "$LOG" "$ROT" 2>/dev/null
+    chmod 640 "$ROT" 2>/dev/null
+    : > "$LOG"
+    chmod 640 "$LOG"
+    find /var/log -maxdepth 1 -name 'shim.log.*' -type f -mtime +"$KEEP_DAYS" -delete 2>/dev/null
+fi

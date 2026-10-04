@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "plugins": {
+    "auth0@claude-plugins-official": [
+      {
+        "scope": "project",
+        "installPath": "/root/.openclaude/plugins/cache/claude-plugins-official/auth0/2.1.0",
+        "version": "2.1.0",
+        "installedAt": "2026-08-20T12:28:57.375Z",
+        "lastUpdated": "2026-08-20T12:28:57.375Z",
+        "gitCommitSha": "abab92beb4b7c703313fe2309567b018474e48a0",
+        "projectPath": "/root"
+      }
+    ]
+  }
+}

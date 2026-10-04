@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+
+name="rig-dashboard"
+description="Control dashboard for anthropic-shim (config, snapshots, proxy control)"
+command="/usr/bin/node"
+command_args="${HOME:-/root}/workspaces/rig-portable/bin/rig-dashboard.mjs"
+command_background="yes"
+pidfile="/run/rig-dashboard.pid"
+output_log="/var/log/rig-dashboard.log"
+error_log="/var/log/rig-dashboard.log"
+
+export DASH_PORT=9087
+export DASH_HOST=0.0.0.0
+export SHIM_CONF=/etc/conf.d/anthropic-shim
+export SETTINGS_JSON="${HOME:-/root}/.claude/settings.json"
+export RIG_REPO="${HOME:-/root}/workspaces/rig-portable"
+export SNAPSHOT_DIR="${HOME:-/root}/.claude/dashboard-snapshots"
+
+# Source the shim conf so direct provider probes can resolve $KEY env refs.
+if [ -f "${SHIM_CONF:-/etc/conf.d/anthropic-shim}" ]; then
+	. "${SHIM_CONF}"
+fi
+
+depend() {
+	need net
+	use logger
+}

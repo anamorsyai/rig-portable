@@ -1,0 +1,103 @@
+{
+  "env": {},
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__caido__*",
+      "mcp__burp__*",
+      "mcp__chrome-devtools__*",
+      "mcp__playwright__*",
+      "mcp__sequential-thinking__*"
+    ],
+    "deny": [
+      "TaskCreate",
+      "TaskGet",
+      "TaskList",
+      "TaskUpdate",
+      "TaskStop"
+    ],
+    "defaultMode": "default"
+  },
+  "model": "big-pickle",
+  "enabledPlugins": {
+    "auth0@claude-plugins-official": true
+  },
+  "memory": {
+    "autoWrite": true,
+    "requireApprovalBeforeWrite": false
+  },
+  "modelLimits": {
+    "deepseek-ai/DeepSeek-V4-Flash-0731": {
+      "contextWindow": 131072,
+      "maxOutputTokens": 8192
+    },
+    "moonshotai/Kimi-K2.6": {
+      "contextWindow": 262144,
+      "maxOutputTokens": 8192
+    },
+    "big-pickle": {
+      "contextWindow": 262144,
+      "maxOutputTokens": 8192
+    },
+    "mimo-v2.5-free": {
+      "contextWindow": 262144,
+      "maxOutputTokens": 8192
+    },
+    "nemotron-3-ultra-free": {
+      "contextWindow": 262144,
+      "maxOutputTokens": 8192
+    },
+    "nemotron-3.5-lightning-free": {
+      "contextWindow": 262144,
+      "maxOutputTokens": 8192
+    },
+    "hy3-free": {
+      "contextWindow": 262144,
+      "maxOutputTokens": 8192
+    }
+  },
+  "autoCompactEnabled": true,
+  "compactTailTurns": 20,
+  "contextCollapseEnabled": false,
+  "toolHistoryCompressionEnabled": true,
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.openclaude/memory/auto-memory.sh PreCompact",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.openclaude/memory/auto-memory.sh SessionStart",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.openclaude/memory/auto-memory.sh Stop",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

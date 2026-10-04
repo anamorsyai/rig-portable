@@ -1,0 +1,422 @@
+#!/usr/bin/env bash
+# oc — Claude Code control panel.
+#   oc <args...>      passthrough to `claude <args...>` (pure alias)
+#   oc                interactive dashboard: models/liveness, providers,
+#                     keys, fallback chain, claude settings, proxy control
+# Flags: -lm live list | -t [model] test | -d <m> set default
+#        -fc "<csv>" chain | -pa <name> <url> <KEY_ENV> [models]
+#        -pd <name> del provider | -k keys (masked) | -cs [k] [v] settings
+#        -s status | -r restart | -L log | -h help
+set -u
+
+CONF=/etc/conf.d/anthropic-shim
+SETTINGS="$HOME/.claude/settings.json"
+G=$'\033[32m'; R=$'\033[31m'; Y=$'\033[33m'; B=$'\033[36m'; D=$'\033[2m'; N=$'\033[0m'
+
+conf_field() {
+  awk -F= -v n="export $1=" '$0 ~ "^"n {v=substr($0,index($0,"=")+1); gsub(/^[\x27"]|[\x27"]$/,"",v); print v; exit}' "$CONF"
+}
+proxy_alive() { curl -s -o /dev/null -m 5 http://127.0.0.1:${PORT:-9086}/v1/models 2>/dev/null; }
+# OpenRC (rc-service) only exists on real Alpine hosts — AlpineTerm/proot has none, so
+# restart falls back to pkill+nohup with the same config. ss/netstat can't see other
+# processes' sockets under proot, so liveness is curl-based, not port-based.
+has_openrc() { command -v rc-service >/dev/null 2>&1 && [ -d /etc/init.d ]; }
+masked() { local v="$1"; if [ ${#v} -le 10 ]; then echo "set (${#v} chars)"; else echo "${v:0:5}...${v: -4}"; fi; }
+
+conf_upstreams_set() {
+  python3 - "$1" <<'PY'
+import json,sys
+new=json.dumps(json.loads(sys.argv[1]))
+p="/etc/conf.d/anthropic-shim"
+out=[];done=False
+for l in open(p):
+    if l.startswith("export UPSTREAMS="):
+        out.append("export UPSTREAMS='"+new+"'\n"); done=True
+    else: out.append(l)
+if not done: out.append("export UPSTREAMS='"+new+"'\n")
+open(p,"w").writelines(out)
+PY
+}
+
+key_set() { # NAME VALUE  (write/update an export KEY line)
+  python3 - "$1" "$2" <<'PY'
+import re,sys
+def shq(s):
+    # single-quote shell escaping: safe against $, `, ", \ interpretation
+    return "'" + s.replace("'", "'\\''") + "'"
+name,val=sys.argv[1],sys.argv[2]
+p="/etc/conf.d/anthropic-shim"
+pat=re.compile(r"^export %s=" % re.escape(name))
+line='export %s=%s\n'%(name, shq(val))
+ls=open(p).readlines()
+for i,l in enumerate(ls):
+    if pat.match(l): ls[i]=line; break
+else: ls.append(line)
+open(p,"w").writelines(ls)
+PY
+}
+
+settings_set() { # KEY VALUE in claude settings env
+  python3 - "$1" "$2" <<'PY'
+import json,os,sys
+p=os.path.expanduser("~/.claude/settings.json")
+s=json.load(open(p)); s.setdefault("env",{})[sys.argv[1]]=sys.argv[2]
+json.dump(s,open(p,"w"),indent=2)
+PY
+}
+settings_get() {
+  python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.claude/settings.json'))).get('env',{}).get('$1',''))" 2>/dev/null
+}
+
+provider_delete() { # NAME
+  upstreams_json | python3 -c "
+import json,sys
+d=json.loads(sys.stdin.read()); d.pop(sys.argv[1],None); print(json.dumps(d))" "$1" | conf_upstreams_set
+}
+upstreams_json() { conf_field UPSTREAMS; }
+
+live_list() {
+  [ -f "$CONF" ] || { echo "missing $CONF"; return 1; }
+  local TMPD; TMPD=$(mktemp -d) || { echo "mktemp failed"; return 1; }
+  local ROUTES="$TMPD/routes" OUT="$TMPD/out" RES="$TMPD/res"
+  trap 'rm -rf "$TMPD"' EXIT HUP INT TERM
+  python3 - <<'PY' > "$ROUTES"
+import json
+up=None; mmap={}
+for l in open("/etc/conf.d/anthropic-shim"):
+    if l.startswith("export UPSTREAMS="):
+        up=json.loads(l.split("=",1)[1].strip().strip("'"))
+    if l.startswith("export MODEL_MAP="):
+        mmap=json.loads(l.split("=",1)[1].strip().strip("'"))
+seen={}
+for n,p in up.items():
+    for m in p.get("models",[]):
+        m=mmap.get(m,m)
+        if m not in seen: seen[m]=n; print(m+"\t"+n)
+for a,b in mmap.items():
+    if a not in seen and b in seen: print(a+" (= "+b+")\t"+seen[b])
+PY
+  cut -f1 "$ROUTES" | sort -u > "$RES"
+  echo "  Pinging $(wc -l < "$RES") models via proxy ..."
+  ping_one() {
+    local m="$1" r
+    r=$(curl -s -m60 http://127.0.0.1:${PORT:-9086}/v1/messages -H 'Content-Type: application/json' \
+      -d "{\"model\":\"$m\",\"max_tokens\":150,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Reply with exactly OK\"}]}]}")
+    if echo "$r" | grep -q '"content"'; then printf 'UP\t%s\t-\n' "$m" >> "$OUT"
+    else printf 'DOWN\t%s\t%s\n' "$m" "$(echo "$r"|head -c 50|tr '\n\t' ' ')" >> "$OUT"; fi
+  }
+  : > "$OUT"; local n=0
+  while read -r m; do ping_one "$m" & n=$((n+1)); [ $((n % 8)) -eq 0 ] && wait; done < "$RES"
+  wait
+  local def cm sm prov st m rest
+  def=$(conf_field FALLBACK_MODEL); cm=$(settings_get ANTHROPIC_MODEL); sm=$(settings_get ANTHROPIC_SMALL_FAST_MODEL)
+  while IFS=$'\t' read -r st m rest; do
+    prov=$(awk -F'\t' -v M="$m" '$1==M{print $2; exit}' "$ROUTES")
+    local tag=""
+    [ "$m" = "$def" ] && tag="${Y} <default>${N}"
+    [ "$m" = "$cm" ] && tag="${tag}${Y} <= claude master${N}"
+    [ "$m" = "$sm" ] && tag="${tag}${Y} <= claude small${N}"
+    if [ "$st" = "UP" ]; then
+      printf "  ${G}[UP]${N}   %-45s -> %-11s${tag}\n" "$m" "$prov"
+    else
+      printf "  ${R}[DOWN]${N} %-43s -> %-11s ${D}%s${N}\n" "$m" "$prov" "$rest"
+    fi
+  done < <(sort -t$'\t' -k2 "$OUT")
+  echo
+  echo "  Fallback chain : $(conf_field FALLBACK_CHAIN)"
+  echo "  Proxy default  : $def   | Claude master: $cm | small: $sm"
+}
+
+test_model() {
+  local m="${1:-$(conf_field FALLBACK_MODEL)}"
+  echo "  Testing '$m' via proxy ..."
+  local r
+  r=$(curl -s -m90 http://127.0.0.1:${PORT:-9086}/v1/messages -H 'Content-Type: application/json' \
+    -d "{\"model\":\"$m\",\"max_tokens\":100,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Reply with exactly OK\"}]}]}")
+  if echo "$r" | grep -q '"content"'; then
+    echo "  ${G}PASS${N} $(echo "$r" | python3 -c "import json,sys;d=json.load(sys.stdin);print('model='+d.get('model','?'), '|', d['content'][0].get('text','')[:80])" 2>/dev/null)"
+  else
+    echo "  ${R}FAIL${N}: $(echo "$r" | head -c 200)"
+  fi
+}
+
+model_menu() { # interactive numbered picker; sets PICKED, returns 1 on cancel
+  local def; def=$(conf_field FALLBACK_MODEL)
+  local up mm
+  up=$(upstreams_json); mm=$(conf_field MODEL_MAP)
+  [ -n "$up" ] || { echo "  ${R}no UPSTREAMS configured${N}"; return 1; }
+  local ROUTES; ROUTES=$(mktemp) || { echo "mktemp failed"; return 1; }
+  trap 'rm -f "$ROUTES"' EXIT HUP INT TERM
+  UPJ="$up" MMJ="$mm" python3 - "$def" <<'PY' > "$ROUTES"
+import json,os,sys
+try: up=json.loads(os.environ["UPJ"])
+except Exception: sys.exit(1)
+try: mmap=json.loads(os.environ["MMJ"]) if os.environ.get("MMJ") else {}
+except Exception: mmap={}
+seen={}; rows=[]
+for n,p in up.items():
+    for m in p.get("models",[]):
+        rm=mmap.get(m,m)
+        if rm in seen: continue
+        seen[rm]=n; rows.append((rm,"-> "+n,rm))
+for a,tgt in mmap.items():
+    if tgt in seen: rows.append((a,"(= "+tgt+")",tgt))
+for disp,info,sel in rows: print("%s\t%s\t%s"%(disp,info,sel))
+PY
+  local -a ids=()
+  local i=0 disp info sel tag
+  echo "  available models:"
+  while IFS=$'\t' read -r disp info sel; do
+    [ -n "$sel" ] || continue
+    i=$((i+1)); tag=""
+    { [ "$sel" = "$def" ] || [ "$disp" = "$def" ]; } && tag=" ${Y}<default>${N}"
+    printf "   %2d) %-38s %-24s${tag}\n" "$i" "$disp" "$info"
+    ids+=("$sel")
+  done < "$ROUTES"
+  rm -f "$ROUTES"
+  [ "$i" -eq 0 ] && { echo "  ${R}no models configured${N}"; return 1; }
+  printf "  number (or type name, blank=cancel): "; read -r c
+  [ -z "${c:-}" ] && return 1
+  case "$c" in
+    *[!0-9]*) PICKED="$c" ;;
+    *) if [ "$c" -ge 1 ] && [ "$c" -le "$i" ]; then PICKED="${ids[$((c-1))]}"
+       else echo "  ${R}out of range${N}"; return 1; fi ;;
+  esac
+}
+
+set_default() { # MODEL
+  [ -n "$1" ] || { echo "usage: oc -d <model>"; return 1; }
+  local m="$1"
+  conf_upstreams_set "$(upstreams_json)" >/dev/null 2>&1 # sanity: conf parses
+  python3 - "$m" <<'PY'
+import sys
+m=sys.argv[1]; p="/etc/conf.d/anthropic-shim"
+ls=open(p).readlines(); done=False
+for i,l in enumerate(ls):
+    if l.startswith("export FALLBACK_MODEL="):
+        ls[i]='export FALLBACK_MODEL="%s"\n'%m; done=True; break
+if not done: ls.append('export FALLBACK_MODEL="%s"\n'%m)
+open(p,"w").writelines(ls)
+PY
+  settings_set ANTHROPIC_MODEL "$m"
+  echo "  default -> $m. Restarting proxy ..."
+  restart_proxy
+}
+
+set_chain() {
+  [ -n "${1:-}" ] || { echo "usage: oc -fc \"m1,m2,model@provider\""; return 1; }
+  python3 - "$1" <<'PY'
+import sys
+p="/etc/conf.d/anthropic-shim"
+ls=open(p).readlines(); done=False
+for i,l in enumerate(ls):
+    if l.startswith("export FALLBACK_CHAIN="):
+        ls[i]='export FALLBACK_CHAIN="%s"\n'%sys.argv[1]; done=True; break
+if not done: ls.append('export FALLBACK_CHAIN="%s"\n'%sys.argv[1])
+open(p,"w").writelines(ls)
+PY
+  echo "  fallback chain set: $1"
+}
+
+restart_proxy() {
+  if has_openrc; then
+    rc-service anthropic-shim stop >/dev/null 2>&1 || true
+    pkill -f 'anthropic-shim' 2>/dev/null && sleep 1
+    rc-service anthropic-shim start >/dev/null 2>&1
+  else
+    # no OpenRC (AlpineTerm/proot): the shared restart script handles the kill +
+    # nohup start safely (its pkill pattern matches only the real binary paths —
+    # a broad pattern matches the caller's own argv and kills the restart).
+    local SCRIPT="$(dirname "$(readlink -f "$0")")/restart-shim.sh"
+    [ -x "$SCRIPT" ] || SCRIPT=/root/claude-code-hunting-rig-portable/bin/restart-shim.sh
+    if [ -x "$SCRIPT" ]; then
+      "$SCRIPT" || { echo "  ${R}restart failed${N}"; return 1; }
+    else
+      echo "  ${R}no restart script${N} — run the rig installer first"; return 1
+    fi
+  fi
+  sleep 2
+  if proxy_alive; then echo "  ${G}proxy restarted${N} on :${PORT:-9086}"; else echo "  ${R}proxy FAILED to start${N} (check: oc -L)"; fi
+}
+
+key_inventory() {
+  echo "  ${B}Keys${N} (values masked) — $CONF"
+  grep -E '^export [A-Z_]+_KEY=' "$CONF" | while IFS= read -r l; do
+    name=$(echo "$l" | sed -E 's/^export ([A-Z_]+)=.*/\1/')
+    val=$(echo "$l" | sed -E "s/^export [A-Z_]+=//; s/^\"//; s/\"\$//")
+    printf "    %-20s %s\n" "$name" "$(masked "$val")"
+  done
+  echo "  Provider -> key ref:"
+  upstreams_json | python3 -c "
+import json,sys
+for n,p in json.loads(sys.stdin.read()).items():
+    print('    %-12s <- %s' % (n, p.get('key','?')))"
+  printf "  Update a key? name (blank=cancel): "; read -r kn
+  [ -z "${kn:-}" ] && { echo "  cancelled."; return; }
+  case "$kn" in *_KEY) ;; *) kn="${kn}_KEY";; esac
+  printf "  new value for \$%s (blank=cancel): " "$kn"; read -r kv
+  [ -z "$kv" ] && { echo "  cancelled."; return; }
+  key_set "$kn" "$kv"
+  echo "  $kn updated. Restart proxy for effect (menu 7)."
+}
+
+provider_menu() {
+  upstreams_json | python3 -c "
+import json,sys
+d=json.loads(sys.stdin.read())
+for i,(n,p) in enumerate(d.items(),1):
+    print('    %d. %-12s %-55s [%d models] key=%s' % (i,n,p.get('url','')[:55],len(p.get('models',[])),p.get('key','?')))"
+  echo "    a. add provider   e. edit provider   d. delete provider   b. back"
+  printf "  choice: "; read -r c
+  case "$c" in
+    a) printf "  name (blank=cancel): "; read -r n; [ -z "$n" ] && { echo "  cancelled."; return; }
+       printf "  url (blank=cancel): "; read -r u; [ -z "$u" ] && { echo "  cancelled."; return; }
+       printf "  key VALUE (\$ENVREF ok, blank=cancel): "; read -r k; [ -z "$k" ] && { echo "  cancelled."; return; }
+       printf "  ua (Enter=curl): "; read -r ua; ua=${ua:-curl/8.5.0}
+       printf "  models csv (optional): "; read -r ms
+       upstreams_json | NAME="$n" URL="$u" KEYV="$k" UA="$ua" MODELS="$ms" python3 -c "
+import json,sys,os
+d=json.loads(sys.stdin.read())
+p={'url':os.environ['URL'],'key':os.environ['KEYV'] if os.environ['KEYV'].startswith('\$') else os.environ['KEYV'],'ua':os.environ['UA']}
+if os.environ['MODELS']: p['models']=[m for m in os.environ['MODELS'].split(',') if m]
+d[os.environ['NAME']]=p; print(json.dumps(d))" | conf_upstreams_set
+       if [ -n "$k" ] && [[ "$k" != "\$"* ]]; then key_set "$(echo "$n" | tr '[:lower:]-' '[:upper:]_')_KEY" "$k"; fi
+       echo "  provider '$n' saved."; ;;
+    e) printf "  provider name: "; read -r n; [ -z "$n" ] && return
+       upstreams_json | python3 -c "
+import json,sys
+d=json.loads(sys.stdin.read()); p=d.get(sys.argv[1],{})
+print('      url:',p.get('url','')); print('      models:',', '.join(p.get('models',[])))" "$n"
+       printf "  new url (Enter=keep): "; read -r nu
+       printf "  new models csv (Enter=keep): "; read -r nm
+       upstreams_json | NAME="$n" URL="$nu" MODELS="$nm" python3 -c "
+import json,sys,os
+d=json.loads(sys.stdin.read()); p=d[os.environ['NAME']]
+if os.environ['URL']: p['url']=os.environ['URL']
+if os.environ['MODELS']: p['models']=[m for m in os.environ['MODELS'].split(',') if m]
+print(json.dumps(d))" | conf_upstreams_set
+       echo "  '$n' updated."; ;;
+    d) printf "  provider to DELETE: "; read -r n; [ -z "$n" ] && return
+       printf "  confirm delete '$n' [y/N]: "; read -r yn
+       [ "$yn" = "y" ] && { provider_delete "$n"; echo "  '$n' deleted."; }; ;;
+  esac
+}
+
+header() {
+  printf "%b" "$B"
+  echo "  +================================================================+"
+  echo "  |   O C   —   C L A U D E   &   P R O X Y   C O N T R O L        |"
+  echo "  +================================================================+"
+  printf "%b" "$N"
+  local def cm sm
+  def=$(conf_field FALLBACK_MODEL); cm=$(settings_get ANTHROPIC_MODEL); sm=$(settings_get ANTHROPIC_SMALL_FAST_MODEL)
+  if proxy_alive; then
+    echo -e "   Proxy: ${G}RUNNING${N} :${PORT:-9086}   default: ${Y}$def${N}"
+  else
+    echo -e "   Proxy: ${R}DOWN${N}          (start via menu 7)"
+  fi
+  echo "   Claude master: $cm | small: $sm"
+}
+
+dashboard() {
+  while true; do
+    header
+    cat <<'MENU'
+   1) Models — live status & routing
+   2) Set default model
+   3) Fallback chain
+   4) Providers (add/edit/delete)
+   5) Keys (masked / update)
+   6) Claude settings
+   7) Proxy (restart/status/log/test)
+   q) quit
+MENU
+    printf "  choice: "; read -r c
+    case "${c:-}" in
+      1) live_list; press ;;
+      2) model_menu && set_default "$PICKED" || echo "  cancelled."; press ;;
+      3) printf "  new chain csv (blank=cancel): "; read -r ch; [ -n "$ch" ] && set_chain "$ch"; press ;;
+      4) provider_menu; press ;;
+      5) key_inventory; press ;;
+      6) claude_settings_menu; press ;;
+      7) proxy_menu; press ;;
+      q|Q) clear; exit 0 ;;
+      *) : ;;
+    esac
+  done
+}
+press() { printf "  -- enter to continue --"; read -r _; }
+
+claude_settings_menu() {
+  python3 -c "
+import json,os
+e=json.load(open(os.path.expanduser('~/.claude/settings.json'))).get('env',{})
+for k in sorted(e): print('    %s = %s' % (k,e[k]))"
+  printf "  field to change (blank=back): "; read -r k
+  [ -z "${k:-}" ] && return
+  printf "  new value (blank=cancel): "; read -r v
+  [ -z "${v:-}" ] && { echo "  cancelled."; return; }
+  settings_set "$k" "$v"; echo "  $k = $v"
+}
+
+proxy_menu() {
+  cat <<'PM'
+    1. restart proxy     2. status     3. tail log     4. test default model
+PM
+  printf "  choice: "; read -r c
+  case "${c:-}" in
+    1) restart_proxy ;;
+    2) if proxy_alive; then echo -e "  ${G}proxy UP${N} on :${PORT:-9086}"; else echo -e "  ${R}proxy DOWN${N}"; fi ;;
+    3) tail -30 /var/log/shim.log 2>/dev/null || echo "  no log file" ;;
+    4) test_model "$(conf_field FALLBACK_MODEL)" ;;
+  esac
+}
+
+usage() {
+  cat <<'UH'
+oc — claude alias + control panel
+  oc <args...>            run claude with args (pure passthrough)
+  oc                      interactive dashboard
+Flags:
+  -lm              live model status + routes + defaults
+  -t [model]       test one model through the proxy
+  -d <model>       set default master model (+alias remap, proxy restart)
+  -fc "<csv>"      set fallback chain
+  -pa <name> <url> <KEY_ENV> [models,csv]   add/update provider
+  -pd <name>       delete provider
+  -k               key inventory (masked)
+  -cs <key> <val>  set claude settings env field
+  -s|-r|-L         proxy status / restart / log tail
+  -h               this help
+UH
+}
+
+PORT=$(conf_field PORT); PORT=${PORT:-9086}
+
+[ $# -eq 0 ] && { dashboard; exit 0; }
+
+case "$1" in
+  -h|--help) usage ;;
+  -lm) live_list ;;
+  -t) test_model "${2:-}" ;;
+  -d) shift; set_default "${1:-}" ;;
+  -fc) shift; set_chain "${1:-}" ;;
+  -k) key_inventory ;;
+  -cs) if [ $# -ge 3 ]; then settings_set "$2" "$3"; echo "  $2 = $3"; else claude_settings_menu; fi ;;
+  -pa)
+    [ $# -lt 4 ] && { echo "usage: oc -pa <name> <url> <KEY_VALUE_OR_ENV> [models,csv]"; exit 1; }
+    name="$2" url="$3" kv="$4"; ms="${5:-}"
+    case "$kv" in \$*) keyv="$kv";; *) keyv="\$$(echo "$name"|tr '[:lower:]-' '[:upper:]_')_KEY"; key_set "$(echo "$name"|tr '[:lower:]-' '[:upper:]_')_KEY" "$kv";; esac
+    upstreams_json | NAME="$name" URL="$url" KEYV="$keyv" MODELS="$ms" python3 -c "
+import json,sys,os
+d=json.loads(sys.stdin.read())
+p={'url':os.environ['URL'],'key':os.environ['KEYV'],'ua':'curl/8.5.0'}
+if os.environ['MODELS']: p['models']=[m for m in os.environ['MODELS'].split(',') if m]
+d[os.environ['NAME']]=p; print(json.dumps(d))" | conf_upstreams_set
+    echo "  provider '$name' saved (restart proxy to load)."; ;;
+  -pd) [ -n "${2:-}" ] && { provider_delete "$2"; echo "  '$2' deleted (restart proxy to load)."; } ;;
+  -s) proxy_alive && echo -e "${G}proxy UP${N} on :$PORT" || echo -e "${R}proxy DOWN${N}" ;;
+  -r) restart_proxy ;;
+  -L) tail -30 /var/log/shim.log 2>/dev/null || echo "no log file" ;;
+  *) exec claude "$@" ;;
+esac

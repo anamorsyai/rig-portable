@@ -1,0 +1,315 @@
+{
+  "numStartups": 220,
+  "hasSeenTasksHint": true,
+  "customApiKeyResponses": {
+    "approved": [
+      "bifrost-local"
+    ],
+    "rejected": []
+  },
+  "tipsHistory": {
+    "new-user-warmup": 1,
+    "plan-mode-for-complex-tasks": 207,
+    "agents-view-multiclauding": 1,
+    "memory-command": 210,
+    "theme-command": 192,
+    "color-when-multi-clauding": 217,
+    "colorterm-truecolor": 193,
+    "status-line": 7,
+    "prompt-queue": 7,
+    "enter-to-steer-in-relatime": 201,
+    "todo-list": 202,
+    "ide-upsell-external-terminal": 207,
+    "drag-and-drop-images": 220,
+    "double-esc-code-restore": 212,
+    "continue": 212,
+    "shift-tab": 190,
+    "image-paste": 204,
+    "permissions": 211,
+    "rename-conversation": 204,
+    "agent-flag": 204,
+    "subagent-fanout-nudge": 207,
+    "dynamic-workflows": 207,
+    "workflow-size-prompting-ambient": 180,
+    "loop-command-nudge": 207,
+    "git-worktrees": 207,
+    "frontend-design-plugin": 125,
+    "no-flicker": 193
+  },
+  "promptQueueUseCount": 106,
+  "btwUseCount": 3,
+  "unpinOpus47LaunchEffort": true,
+  "unpinOpus48LaunchEffort": true,
+  "unpinFable5LaunchEffort": true,
+  "firstStartTime": "2026-08-21T19:00:29.496Z",
+  "machineID": "365913d01742a36fa7dd6ba0c90dad62de6a478f27ebd2260e8b1ce42b3b877d",
+  "opusProMigrationComplete": true,
+  "sonnet1m45MigrationComplete": true,
+  "seenNotifications": {},
+  "hasResetAutoModeOptInForDefaultOffer": true,
+  "migrationVersion": 14,
+  "userID": "a0eeb2c39bf22a291b378355d5e50349408970916f409e6090a9a76fa866612b",
+  "mcpServers": {
+    "burp": {
+      "type": "http",
+      "url": "http://127.0.0.1:9876"
+    },
+    "caido": {
+      "type": "http",
+      "url": "http://127.0.0.1:3333/mcp"
+    },
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "mcp-server-sequential-thinking",
+      "args": []
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "playwright-mcp",
+      "args": [
+        "--executable-path=/usr/bin/chromium-browser",
+        "--no-sandbox",
+        "--headless"
+      ]
+    },
+    "browser-control": {
+      "command": "node",
+      "args": [
+        "/root/browser-control-mcp/mcp-server/dist/server.js"
+      ],
+      "env": {
+        "EXTENSION_SECRET": "3b8aac9d-d513-4874-981e-0406ac644994",
+        "EXTENSION_PORT": "8089"
+      }
+    }
+  },
+  "hasCompletedOnboarding": true,
+  "lastReleaseNotesSeen": "2.1.260",
+  "projects": {
+    "/root": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [],
+      "lastGracefulShutdown": false,
+      "lastVersionBase": "2.1.267",
+      "lastCost": 0.305605,
+      "lastAPIDuration": 73737,
+      "lastAPIDurationWithoutRetries": 73709,
+      "lastToolDuration": 0,
+      "lastDuration": 3839820,
+      "lastStartTime": 1789042843082,
+      "lastLinesAdded": 0,
+      "lastLinesRemoved": 0,
+      "lastTotalInputTokens": 58961,
+      "lastTotalOutputTokens": 432,
+      "lastTotalCacheCreationInputTokens": 0,
+      "lastTotalCacheReadInputTokens": 0,
+      "lastTotalWebSearchRequests": 0,
+      "lastModelUsage": {
+        "glm-5.3-flash": {
+          "inputTokens": 58961,
+          "outputTokens": 432,
+          "thinkingTokens": 0,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.305605
+        }
+      },
+      "lastSessionId": "9aa82280-64fe-46e6-a9c9-e132a76c8a25",
+      "lastSessionMetrics": {
+        "frame_duration_ms_count": 478,
+        "frame_duration_ms_min": 0.11423500000091735,
+        "frame_duration_ms_max": 78.18343600000003,
+        "frame_duration_ms_avg": 1.1100449560664554,
+        "frame_duration_ms_p50": 0.6038150000040332,
+        "frame_duration_ms_p95": 2.6569303000005644,
+        "frame_duration_ms_p99": 6.240506650000334,
+        "hook_duration_ms_count": 2,
+        "hook_duration_ms_min": 60,
+        "hook_duration_ms_max": 814,
+        "hook_duration_ms_avg": 437,
+        "hook_duration_ms_p50": 437,
+        "hook_duration_ms_p95": 776.3,
+        "hook_duration_ms_p99": 806.46
+      },
+      "activeWorktreeSession": {
+        "originalCwd": "/root/workspaces/blog-primary",
+        "preEnterOriginalCwd": "/root",
+        "worktreePath": "/root/workspaces/blog-primary/.claude/worktrees/blog-features",
+        "worktreeName": "blog-features",
+        "worktreeBranch": "worktree-blog-features",
+        "originalBranch": "HEAD",
+        "originalHeadCommit": "4ea1080395107fafebc7c20130b0798dd925e079",
+        "sessionId": "32345d39-5b6e-4088-9dd4-6a6cfd87749a",
+        "creationDurationMs": 127,
+        "usedSparsePaths": false
+      },
+      "lastFpsAverage": 0.12,
+      "lastFpsLow1Pct": 122.44
+    }
+  },
+  "officialMarketplaceAutoInstallAttempted": true,
+  "officialMarketplaceAutoInstalled": true,
+  "tipLifetimeShownCounts": {
+    "new-user-warmup": 1,
+    "plan-mode-for-complex-tasks": 13,
+    "agents-view-multiclauding": 1,
+    "memory-command": 13,
+    "theme-command": 10,
+    "color-when-multi-clauding": 15,
+    "colorterm-truecolor": 2,
+    "status-line": 1,
+    "prompt-queue": 1,
+    "enter-to-steer-in-relatime": 10,
+    "todo-list": 10,
+    "ide-upsell-external-terminal": 22,
+    "drag-and-drop-images": 15,
+    "double-esc-code-restore": 14,
+    "continue": 14,
+    "shift-tab": 13,
+    "image-paste": 10,
+    "permissions": 15,
+    "rename-conversation": 12,
+    "agent-flag": 12,
+    "subagent-fanout-nudge": 23,
+    "dynamic-workflows": 22,
+    "workflow-size-prompting-ambient": 12,
+    "loop-command-nudge": 22,
+    "git-worktrees": 12,
+    "frontend-design-plugin": 3,
+    "no-flicker": 1
+  },
+  "skillUsage": {
+    "hunt-operating-contract": {
+      "usageCount": 8,
+      "lastUsedAt": 1787879904052
+    },
+    "porttest": {
+      "usageCount": 1,
+      "lastUsedAt": 1787345323399
+    },
+    "update-config": {
+      "usageCount": 1,
+      "lastUsedAt": 1787348767987
+    },
+    "learn": {
+      "usageCount": 5,
+      "lastUsedAt": 1788360895332
+    },
+    "auth-bypass": {
+      "usageCount": 2,
+      "lastUsedAt": 1787528319827
+    },
+    "ssrf": {
+      "usageCount": 1,
+      "lastUsedAt": 1787527170446
+    },
+    "idor-bola": {
+      "usageCount": 1,
+      "lastUsedAt": 1787528319816
+    },
+    "disposable-email": {
+      "usageCount": 2,
+      "lastUsedAt": 1787909803740
+    },
+    "recon-methodology": {
+      "usageCount": 1,
+      "lastUsedAt": 1787879904085
+    },
+    "hunt-llm-ai": {
+      "usageCount": 3,
+      "lastUsedAt": 1788523219298
+    },
+    "triage-validation": {
+      "usageCount": 3,
+      "lastUsedAt": 1788523219265
+    },
+    "hunt-saml": {
+      "usageCount": 4,
+      "lastUsedAt": 1788523219337
+    },
+    "claude-bughunter-test-probe": {
+      "usageCount": 1,
+      "lastUsedAt": 1788522771855
+    },
+    "claude-bughunter:hunt-saml": {
+      "usageCount": 1,
+      "lastUsedAt": 1788522851179
+    },
+    "hunt-mfa-bypass": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219343
+    },
+    "hunt-cache-poison": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219226
+    },
+    "hunt-source-leak": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219306
+    },
+    "hunt-nosqli": {
+      "usageCount": 3,
+      "lastUsedAt": 1788523274452
+    },
+    "mid-engagement-ir-detection": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219290
+    },
+    "hunt-shadow-api": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219237
+    },
+    "hunt-deserialization": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219273
+    },
+    "hunt-misc": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219314
+    },
+    "recon-scope-triage": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219217
+    },
+    "hunt-dom": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219148
+    },
+    "evidence-hygiene": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219330
+    },
+    "hunt-spa-api": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219252
+    },
+    "hunt-lfi": {
+      "usageCount": 2,
+      "lastUsedAt": 1788523219207
+    },
+    "offensive-osint": {
+      "usageCount": 3,
+      "lastUsedAt": 1788523289940
+    },
+    "doctor": {
+      "usageCount": 1,
+      "lastUsedAt": 1788689197519
+    }
+  },
+  "hasOpenedAgentsView": true,
+  "agentLastUsed": {
+    "bg": 1787342086678
+  },
+  "defaultToAgentsView": true,
+  "lastPlanModeUse": 1787348359270,
+  "workflowSizeGuideline": "medium",
+  "claudeInChromeDefaultEnabled": false
+}

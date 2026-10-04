@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# rig-models — dashboard/CLI for the anthropic-shim proxy:
+#   providers, models, failover chain, default model, service control.
+# Config: /etc/conf.d/anthropic-shim (sourced by openrc service + this tool).
+set -u
+CONF=${CONF:-/etc/conf.d/anthropic-shim}
+SETTINGS="$HOME/.claude/settings.json"
+LOG=/var/log/shim.log
+[ -f "$CONF" ] || { echo "missing $CONF"; exit 1; }
+. "$CONF"
+
+py() { python3 - "$@"; }
+
+conf_set_plain() { # NAME VALUE  (shell-quoted single-line)
+  py "$1" "$2" <<'PY'
+import sys, os, re
+name, val = sys.argv[1], sys.argv[2]
+p = "/etc/conf.d/anthropic-shim"
+lines = open(p).readlines()
+pat = re.compile(r"^export " + re.escape(name) + "=")
+line = "export %s='%s'\n" % (name, val.replace("'", "'\\''"))
+for i, l in enumerate(lines):
+    if pat.match(l):
+        lines[i] = line; break
+else:
+    lines.append(line)
+open(p, "w").writelines(lines)
+PY
+}
+conf_get_plain() { awk -F"='" -v n="export $1=" '$0 ~ "^"n {print substr($0, length(n)+2, length($0)-length(n)-2)}' "$CONF"; }
+
+conf_upstreams() { python3 - <<'PY'
+import re
+for l in open("/etc/conf.d/anthropic-shim"):
+    if l.startswith("export UPSTREAMS="):
+        v = l.split("=", 1)[1].strip()
+        print(v[1:-1] if len(v) > 1 and v[0] == "'" and v[-1] == "'" else v); break
+PY
+}
+conf_upstreams_set() { # JSON string as $1
+  python3 - "$1" <<'PY'
+import json, sys
+new = json.dumps(json.loads(sys.argv[1]))
+p = "/etc/conf.d/anthropic-shim"
+out = []
+done = False
+for l in open(p):
+    if l.startswith("export UPSTREAMS="):
+        out.append("export UPSTREAMS='" + new + "'\n"); done = True
+    else:
+        out.append(l)
+if not done:
+    out.append("export UPSTREAMS='" + new + "'\n")
+open(p, "w").writelines(out)
+PY
+}
+
+cmd_list() {
+  echo "== Providers (first = default) =="
+  conf_upstreams | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for i,(name,p) in enumerate(d.items()):
+    star='*' if i==0 else ' '
+    print(f\" {star}{name:10s} {p.get('url','')}  [{len(p.get('models',[]))} models]\")"
+  echo; echo "== Route table (model -> provider) =="
+  conf_upstreams | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for n,p in d.items():
+    for m in p.get('models',[]): print(f'{m:47s} -> {n}')"
+  echo
+  echo "Fallback chain : $(conf_get_plain FALLBACK_CHAIN)"
+  echo "Proxy default  : $(conf_get_plain FALLBACK_MODEL)"
+  CM=$(python3 -c "import json;print(json.load(open('$SETTINGS'))['env'].get('ANTHROPIC_MODEL','(unset)'))" 2>/dev/null)
+  echo "Claude model   : $CM"
+}
+
+route_of() { conf_upstreams | MODE="$1" python3 -c "
+import json,sys,os,re
+m=os.environ['MODE']
+d=json.load(sys.stdin)
+ovr={}
+try: ovr=json.loads(re.search(r\"MODEL_PROVIDER='([^']*)'\",open('/etc/conf.d/anthropic-shim').read()).group(1))
+except Exception: pass
+print(ovr.get(m) or next((n for n,p in d.items() if m in p.get('models',[])), list(d)[0]))"; }
+
+provider_add() { # name url KEY_ENV_NAME [models csv]
+  NEWJSON=$(conf_upstreams | NAME="$1" URL="$2" KENV="$3" MODELS="${4:-}" python3 -c "
+import json,sys,os
+d=json.load(sys.stdin)
+d[os.environ['NAME']]={'url':os.environ['URL'],'key':'\$'+os.environ['KENV'],'ua':'\$UPSTREAM_UA','models':[m for m in os.environ['MODELS'].split(',') if m]}
+json.dump(d,sys.stdout)")
+  [ -n "$NEWJSON" ] && conf_upstreams_set "$NEWJSON"
+  echo "provider '$1' saved (key from \$$3). Route models via: rig-models chain 'model@$1,...'"
+}
+
+chain_set() { conf_set_plain FALLBACK_CHAIN "$1"; echo "chain saved. Apply with: rig-models restart"; }
+
+default_set() {
+  conf_set_plain FALLBACK_MODEL "$1"
+  SETTINGS="$SETTINGS" M="$1" python3 -c "
+import json,os
+p=os.environ['SETTINGS']; s=json.load(open(p)); s['env']['ANTHROPIC_MODEL']=os.environ['M']
+json.dump(s,open(p,'w'),indent=2)"
+  echo "default model -> $1 (proxy + claude settings)."
+}
+
+model_test() {
+  local m="${1:-$(conf_get_plain FALLBACK_MODEL)}"
+  echo "-> testing $m via provider $(route_of "$m") ..."
+  curl -s -m90 "http://127.0.0.1:${PORT}/v1/messages" -H 'Content-Type: application/json' \
+    -d "{\"model\":\"$m\",\"max_tokens\":200,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Reply with exactly MODEL-TEST-OK\"}]}]}" \
+    | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print('OK:', [b.get('text','')[:50] for b in d.get('content',[])]) if 'content' in d else print('FAIL:', str(d)[:200])"
+}
+
+restart_svc() {
+  rc-service anthropic-shim restart >/dev/null 2>&1 || true
+  for _ in $(seq 1 10); do sleep 1; ss -tln | grep -q ":$PORT " && break; done
+  ss -tln | grep -q ":$PORT " && echo "shim restarted on :$PORT" || { echo "FAILED — check $LOG"; tail -5 "$LOG"; }
+}
+
+svc_status() {
+  if ss -tln | grep -q ":$PORT "; then echo "shim: RUNNING :$PORT"; else echo "shim: DOWN"; fi
+  cmd_list
+}
+
+dashboard() {
+  while true; do
+    clear 2>/dev/null || true
+    echo "====================================================="
+    echo "   RIG MODELS — proxy dashboard      (port $PORT)"
+    echo "====================================================="
+    cmd_list
+    echo
+    echo " 1) test model            4) set default model"
+    echo " 2) edit fallback chain   5) add/update provider"
+    echo " 3) restart shim          6) tail shim log        q) quit"
+    printf "choice> "
+    read -r c
+    case "$c" in
+      1) printf "model [%s]: " "$(conf_get_plain FALLBACK_MODEL)"; read -r m
+         model_test "${m:-$(conf_get_plain FALLBACK_MODEL)}"; printf "(enter)"; read -r _ ;;
+      2) printf "chain csv (model or model@provider): "; read -r ch; [ -n "$ch" ] && chain_set "$ch" ;;
+      3) restart_svc; printf "(enter)"; read -r _ ;;
+      4) printf "default model: "; read -r m; [ -n "$m" ] && { default_set "$m"; restart_svc; } ;;
+      5) printf "name url KEY_ENV_NAME models(csv): "; read -r n u k ms
+         [ -n "$n" ] && [ -n "$u" ] && [ -n "$k" ] && provider_add "$n" "$u" "$k" "$ms"
+         printf "(enter)"; read -r _ ;;
+      6) tail -20 "$LOG"; printf "(enter)"; read -r _ ;;
+      q|Q) exit 0 ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+  list)     cmd_list ;;
+  add)      shift; echo "(use 'provider <name> <url> <KEY_ENV> [models-csv]' to register a provider, or edit UPSTREAMS json directly)";;
+  rm)       shift; cur=$(conf_get_plain FALLBACK_CHAIN); pem="$1"; case "$pem" in "") echo "usage: rig-models rm <model@provider>"; exit 1;; esac; if ! printf '%s' "$cur" | tr ',' '\n' | grep -qx -- "$pem"; then echo "model '$pem' not in FALLBACK_CHAIN"; exit 1; fi; nc=$(printf '%s' "$cur" | tr ',' '\n' | grep -vx -- "$pem" | paste -sd, -); chain_set "$nc" ;;
+  chain)    shift; chain_set "$1" ;;
+  default)  shift; default_set "$1" ;;
+  provider) shift; provider_add "$@" ;;
+  test)     shift; model_test "${1:-}" ;;
+  status)   svc_status ;;
+  log)      tail -f "$LOG" ;;
+  restart)  restart_svc ;;
+  *)        dashboard ;;
+esac

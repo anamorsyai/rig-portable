@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# OpenClaude auto-memory helper — intelligent capture + curation digest.
+#
+# Invoked by hooks in ~/.claude/settings.json:
+#   PreCompact   -> capture ONLY the new transcript tail for this session (delta, deduped)
+#   Stop         -> same at session end
+#   SessionStart -> age-out stale captures, dedupe vs archive, print a curation digest
+#
+# Also callable directly:  bash auto-memory.sh digest   (print digest, no hooks)
+#
+# Design: the inbox is a *signal* layer, not a transcript archive. Original transcripts
+# already live under ~/.claude/projects/<proj>/*.jsonl, so we never re-bulk-copy them.
+# - state file (.capture-state) records byte offset already captured per transcript path
+#   -> PreCompact/Stop only write genuinely-new content, once. The 11-copies-of-one-
+#   session problem is impossible by construction.
+# - captures are compacted to facts (user + assistant text / tool-use names), noise
+#   events (mode, file-history-snapshot, queue-operation) are dropped.
+# - SessionStart ages out captures older than AGE_DAYS and dedupes against the archive
+#   via content hash, so the inbox only holds genuinely-unprocessed material; then it
+#   prints a digest of candidate facts so the agent can curate (/learn) without reading
+#   megabytes of raw transcript.
+#
+# OpenClaude hooks pass JSON on stdin: { session_id, transcript_path, cwd, ... }.
+# This script must NEVER fail loudly: openclaude blocks on failing hooks.
+# Every path exits 0 and writes a line to the log.
+set +e
+EVENT="${1:-}"
+STDIN=""
+if [ ! -t 0 ]; then
+  STDIN="$(cat 2>/dev/null)"
+fi
+
+HOME_DIR="${HOME:-/root}"
+MEM_DIR="$HOME_DIR/.claude/memory"
+INBOX="$MEM_DIR/inbox"
+ARCHIVE="$MEM_DIR/archive"
+STATE="$MEM_DIR/.capture-state"
+LOG="$MEM_DIR/logs/auto-memory.log"
+AGE_DAYS=14          # captures older than this are auto-archived at SessionStart
+MIN_DELTA=120        # minimum filtered delta size (bytes) worth keeping a capture for
+
+mkdir -p "$INBOX" "$ARCHIVE" "$MEM_DIR/logs" 2>/dev/null
+
+ts() { date +%Y%m%d-%H%M%S; }
+log() { printf '[%s] %s\n' "$(date +%FT%T)" "$*" >> "$LOG" 2>/dev/null; }
+
+stdin_field() {
+  [ -n "$STDIN" ] || return 1
+  python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+print(d.get("'"$1"'", "") or "")
+' <<<"$STDIN" 2>/dev/null
+}
+
+pick_transcript() {
+  local p
+  p="$(stdin_field transcript_path)"
+  if [ -n "$p" ] && [ -f "$p" ]; then
+    echo "$p"
+    return 0
+  fi
+  find "$HOME_DIR/.claude/projects" -name '*.jsonl' -mmin -10 2>/dev/null \
+    | sort -u | xargs -r ls -t 2>/dev/null | head -1
+}
+
+# --- byte-offset state per transcript path ---
+state_get() { awk -F'\t' -v p="$1" '$1==p{print $2}' "$STATE" 2>/dev/null | tail -1; }
+state_set() {
+  local p="$1" off="$2"
+  grep -v -F -e "$p"$'\t' "$STATE" 2>/dev/null > "$STATE.tmp"
+  mv "$STATE.tmp" "$STATE" 2>/dev/null
+  printf '%s\t%s\n' "$p" "$off" >> "$STATE"
+}
+
+# --- compact a raw transcript tail to durable-fact signal (stdin -> stdout) ---
+# Keep: user turns (excluding meta/command expansions) and assistant content
+# (text blocks + tool_use names). Drop: mode, file-history-snapshot, queue-operation,
+# tool results, thinking traces, usage blobs.
+compact_tail() {
+  python3 -c '
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        d = json.loads(line)
+    except Exception:
+        continue
+    t = d.get("type", "")
+    if t == "user":
+        if d.get("isMeta"):
+            continue
+        c = d.get("message", {}).get("content", "")
+        if isinstance(c, list):
+            c = " ".join(x.get("text", "") for x in c if isinstance(x, dict) and x.get("type") == "text").strip()
+        if not c:
+            continue
+        print(json.dumps({"kind": "user", "ts": d.get("timestamp", ""), "session": d.get("sessionId", ""), "content": c[:2000]}, ensure_ascii=False))
+    elif t == "assistant":
+        msgs = d.get("message", {}).get("content", [])
+        parts = []
+        for m in msgs if isinstance(msgs, list) else []:
+            if not isinstance(m, dict):
+                continue
+            if m.get("type") == "text" and m.get("text", "").strip():
+                parts.append(m["text"].strip()[:1500])
+            elif m.get("type") == "tool_use":
+                parts.append("[tool:%s]" % m.get("name", "?"))
+        if not parts:
+            continue
+        print(json.dumps({"kind": "assistant", "ts": d.get("timestamp", ""), "session": d.get("sessionId", ""), "content": " ".join(parts)[:1800]}, ensure_ascii=False))
+'
+}
+
+# --- curate one capture: (compact tail) -> inbox file, if substantive ---
+capture_delta() {
+  local t="$1"
+  local total off delta
+  total="$(wc -c < "$t" 2>/dev/null | tr -d ' ')"
+  [ -n "$total" ] || return 0
+  off="$(state_get "$t")"
+  [ -n "$off" ] || off=0
+  if [ "$total" -le "$off" ]; then
+    log "$EVENT: no new content for $t (already at $off/$total)"
+    return 0
+  fi
+  # transcript truncated/recreated -> reset
+  if [ "$total" -lt "$off" ]; then
+    log "$EVENT: transcript shrunk ($off -> $total), resetting offset"
+    off=0
+  fi
+  delta="$(tail -c +$((off + 1)) "$t" 2>/dev/null | compact_tail)"
+  # advance state regardless so noise isn't re-scanned forever
+  state_set "$t" "$total"
+  if [ -z "$delta" ]; then
+    log "$EVENT: delta empty after filtering for $t (offset now $total)"
+    return 0
+  fi
+  local size="${#delta}"
+  if [ "$size" -lt "$MIN_DELTA" ]; then
+    log "$EVENT: delta too small (${size}B) for $t"
+    return 0
+  fi
+  local sid dest
+  sid="$(basename "$t")"
+  dest="$INBOX/${EVENT}-$(ts)-${off}-${sid}"
+  printf '%s\n' "$delta" > "$dest" 2>/dev/null && log "$EVENT: captured ${size}B delta $t (off $total) -> $dest"
+}
+
+# --- archive a capture file (with reason) ---
+archive_one() {
+  local f="$1" reason="$2"
+  mv "$f" "$ARCHIVE/" 2>/dev/null && log "archived $f ($reason)"
+}
+
+# --- bytes of a file's mtime age in days ---
+age_days() {
+  local f="$1" now old
+  now="$(date +%s)"
+  old="$(stat -c %Y "$f" 2>/dev/null || echo "$now")"
+  echo "$(( (now - old) / 86400 ))"
+}
+
+# --- SessionStart / digest: age-out, dedupe, print candidate facts ---
+emit_digest() {
+  # 1) age-out stale captures
+  for f in "$INBOX"/*.jsonl; do
+    [ -f "$f" ] || continue
+    if [ "$(age_days "$f")" -ge "$AGE_DAYS" ]; then
+      archive_one "$f" "older than ${AGE_DAYS}d"
+    fi
+  done
+  # 2) dedupe: archive any capture whose content hash already exists in the
+  #    archive (already-processed content), or that is an intra-inbox duplicate
+  #    (identical hash appears more than once — keep only the newest copy).
+  if command -v md5sum >/dev/null 2>&1; then
+    local ah fh dupes newest
+    ah="$(cd "$ARCHIVE" 2>/dev/null && md5sum *.jsonl 2>/dev/null | cut -d' ' -f1 | sort -u)"
+    dupes="$(cd "$INBOX" 2>/dev/null && md5sum *.jsonl 2>/dev/null | awk '{print $1}' | sort | uniq -d)"
+    for f in "$INBOX"/*.jsonl; do
+      [ -f "$f" ] || continue
+      fh="$(md5sum "$f" 2>/dev/null | cut -d' ' -f1)"
+      [ -n "$fh" ] || continue
+      if printf '%s\n' "$ah" | grep -qx "$fh"; then
+        archive_one "$f" "matches archived content"
+        continue
+      fi
+      if printf '%s\n' "$dupes" | grep -qx "$fh"; then
+        newest="$(cd "$INBOX" 2>/dev/null && md5sum *.jsonl 2>/dev/null | grep -F "$fh " | awk '{print $2}' | xargs -r ls -t 2>/dev/null | head -1)"
+        [ "$(basename "$f")" != "$newest" ] && archive_one "$f" "duplicate of $newest"
+      fi
+    done
+  fi
+  # 3) digest of what remains
+  local n
+  n="$(ls -1 "$INBOX"/*.jsonl 2>/dev/null | wc -l | tr -d ' ')"
+  if [ -n "$n" ] && [ "$n" -gt 0 ]; then
+    {
+      printf '\n[auto-memory] %s capture(s) pending in %s (curate with /learn):\n' "$n" "$INBOX"
+      python3 - "$INBOX" <<'PY'
+import sys, json, glob, os
+for f in sorted(glob.glob(os.path.join(sys.argv[1], "*.jsonl"))):
+    size = os.path.getsize(f)
+    name = os.path.basename(f)
+    facts = []
+    try:
+        with open(f) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    d = json.loads(line)
+                except Exception:
+                    continue
+                c = d.get("content", "")
+                if d.get("kind") == "user" and c:
+                    facts.append("U: " + c.replace("\n", " ")[:130])
+                elif d.get("kind") == "assistant" and c:
+                    facts.append("A: " + c.replace("\n", " ")[:130])
+    except Exception:
+        pass
+    print("  - %s (%dB) %s" % (name, size, ""))
+    for ft in facts[:6]:
+        print("      %s" % ft)
+PY
+      printf '[auto-memory] done.\n'
+    } >&2
+    log "SessionStart/digest: $n pending"
+  else
+    printf '[auto-memory] inbox empty; nothing to curate.\n' >&2
+    log "SessionStart/digest: inbox empty"
+  fi
+}
+
+case "$EVENT" in
+  PreCompact|Stop)
+    t="$(pick_transcript)"
+    if [ -n "$t" ] && [ -f "$t" ]; then
+      capture_delta "$t"
+    else
+      log "$EVENT: no transcript found"
+    fi
+    ;;
+  SessionStart|digest)
+    emit_digest
+    ;;
+  *)
+    log "unknown event: '$EVENT'"
+    ;;
+esac
+exit 0

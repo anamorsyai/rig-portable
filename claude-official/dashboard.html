@@ -1,0 +1,1396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Rig Dashboard — Control Panel</title>
+<style>
+:root{
+  --bg:#04060c; --bg2:#070b14;
+  --panel:rgba(148,163,255,.045); --panel2:rgba(148,163,255,.075);
+  --line:rgba(148,163,255,.10); --line2:rgba(148,163,255,.26);
+  --text:#e9eefc; --dim:#93a0ba; --faint:#5c6880;
+  --acc:#4f8dff; --acc2:#22d3ee; --green:#34d399; --red:#f87171; --amber:#fbbf24; --purple:#a78bfa;
+  --grad:linear-gradient(135deg,#4f8dff,#22d3ee);
+  --radius:14px; --radius-sm:10px; --shadow:0 14px 40px rgba(0,0,0,.5);
+  --font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --side-w:246px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scrollbar-width:thin;scrollbar-color:rgba(148,163,255,.28) transparent}
+*::-webkit-scrollbar{width:9px;height:9px}
+*::-webkit-scrollbar-thumb{background:rgba(148,163,255,.22);border-radius:99px;border:2px solid transparent;background-clip:content-box}
+*::-webkit-scrollbar-track{background:transparent}
+html,body{height:100%}
+body{
+  font-family:var(--font);color:var(--text);font-feature-settings:"tnum" 1;-webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(1000px 480px at 85% -10%,rgba(79,141,255,.09),transparent 60%),
+    radial-gradient(760px 420px at -6% 8%,rgba(34,211,238,.06),transparent 55%),
+    radial-gradient(640px 380px at 55% 118%,rgba(167,139,250,.05),transparent 60%),
+    var(--bg);
+}
+::selection{background:rgba(79,141,255,.35)}
+a{color:var(--acc);text-decoration:none}
+
+/* ---------- app shell ---------- */
+.app{display:grid;grid-template-columns:var(--side-w) 1fr;min-height:100vh}
+.sidebar{
+  position:sticky;top:0;height:100vh;display:flex;flex-direction:column;z-index:40;
+  border-right:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(10,14,26,.92),rgba(6,9,17,.92));
+  backdrop-filter:blur(14px) saturate(1.3);
+}
+.brand{display:flex;align-items:center;gap:11px;padding:18px 16px 14px}
+.brand .logo{
+  width:36px;height:36px;border-radius:11px;flex:none;display:grid;place-items:center;
+  background:var(--grad);color:#03101f;font-weight:800;font-size:16px;
+  box-shadow:0 6px 18px rgba(79,141,255,.35), inset 0 1px 0 rgba(255,255,255,.4);
+}
+.brand b{display:block;font-size:14px;letter-spacing:.2px}
+.brand small{display:block;color:var(--faint);font-size:9.5px;text-transform:uppercase;letter-spacing:1.4px;margin-top:2px}
+.nav{flex:1;overflow-y:auto;padding:8px 12px 12px;display:flex;flex-direction:column;gap:3px}
+.nav-label{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:1.4px;color:var(--faint);padding:12px 12px 6px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:10px;cursor:pointer;
+  color:var(--dim);font-size:13px;font-weight:600;border:1px solid transparent;transition:.16s;position:relative;user-select:none;
+}
+.nav-item svg{width:16px;height:16px;flex:none;opacity:.8}
+.nav-item:hover{color:var(--text);background:rgba(148,163,255,.06)}
+.nav-item.active{
+  color:#fff;border-color:rgba(79,141,255,.32);
+  background:linear-gradient(135deg,rgba(79,141,255,.18),rgba(34,211,238,.09));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+}
+.nav-item.active::before{content:"";position:absolute;left:-12px;top:24%;bottom:24%;width:3px;border-radius:0 3px 3px 0;background:var(--grad)}
+.side-foot{padding:14px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.side-foot .row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim)}
+.side-foot .ver{font-size:10px;color:var(--faint);letter-spacing:.4px}
+.mini-pill{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none;transition:.2s}
+.mini-pill.on{background:var(--green);box-shadow:0 0 8px rgba(52,211,153,.8)}
+.mini-pill.off{background:var(--red);box-shadow:0 0 8px rgba(248,113,113,.8)}
+.backdrop{position:fixed;inset:0;background:rgba(2,4,10,.6);backdrop-filter:blur(3px);z-index:35;opacity:0;pointer-events:none;transition:.2s}
+.backdrop.show{opacity:1;pointer-events:auto}
+
+/* ---------- content / topbar ---------- */
+.content{display:flex;flex-direction:column;min-width:0}
+.topbar{
+  position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:12px;height:58px;padding:0 22px;
+  border-bottom:1px solid var(--line);background:rgba(4,7,14,.78);backdrop-filter:blur(14px) saturate(1.3);
+}
+.topbar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(79,141,255,.4),rgba(34,211,238,.4),transparent);pointer-events:none}
+.page-title{font-size:16px;font-weight:800;letter-spacing:-.2px}
+.top-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+.menu-btn{display:none}
+.icon-btn{
+  width:34px;height:34px;padding:0;display:inline-grid;place-items:center;border-radius:9px;
+  background:transparent;border:1px solid var(--line);color:var(--dim);font-size:14px;cursor:pointer;transition:.16s;
+}
+.icon-btn:hover{color:var(--text);background:rgba(148,163,255,.08);box-shadow:none;transform:none}
+.live{
+  display:flex;align-items:center;gap:7px;padding:5px 12px;border-radius:99px;font-size:11px;font-weight:650;
+  border:1px solid var(--line);color:var(--dim);letter-spacing:.3px;white-space:nowrap;font-family:var(--mono);
+}
+.live .dot-pulse{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.live.on{color:var(--green);border-color:rgba(52,211,153,.35)}
+.live.on .dot-pulse{background:var(--green);box-shadow:0 0 0 0 rgba(52,211,153,.55);animation:pulse 2.2s infinite}
+.live.off{color:var(--red);border-color:rgba(248,113,113,.35)}
+.live.off .dot-pulse{background:var(--red);box-shadow:0 0 0 0 rgba(248,113,113,.45);animation:pulse 1.3s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 7px transparent}to{box-shadow:0 0 0 0 transparent}}
+.main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:26px 22px 70px}
+.page{animation:fadeUp .26s cubic-bezier(.2,.7,.3,1)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.hd{display:flex;align-items:flex-end;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.hd h1{font-size:20px;font-weight:800;letter-spacing:-.3px}
+.hd p{color:var(--dim);font-size:12.5px;padding-bottom:2px}
+.hd .spacer{margin-left:auto;display:flex;gap:8px;align-items:center}
+.section-title{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--faint);margin:26px 0 10px;display:flex;align-items:center;gap:8px}
+.section-title .mono{font-family:var(--mono);text-transform:none;letter-spacing:0}
+
+/* ---------- cards ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:14px;margin-bottom:18px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.card{
+  position:relative;
+  background:linear-gradient(180deg,rgba(148,163,255,.055),rgba(148,163,255,.02));
+  border:1px solid var(--line);border-radius:var(--radius);padding:16px;
+  box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter:blur(8px);transition:.16s;
+}
+.card:hover{border-color:var(--line2)}
+.card.row{display:flex;flex-direction:column;gap:7px;justify-content:center;overflow:hidden}
+.card.row::before{content:"";position:absolute;left:-2px;top:20%;bottom:20%;width:3px;border-radius:3px;background:var(--grad);opacity:0;transition:.16s}
+.card.row:hover::before{opacity:.9;left:1px}
+.card .k{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--faint)}
+.card .v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;word-break:break-word;letter-spacing:-.2px}
+.card .v.lg{font-size:26px}
+.card .v.mono{font-family:var(--mono);font-size:13px;font-weight:600}
+.card .sub{font-size:11px;color:var(--faint);margin-top:2px}
+.mb{margin-bottom:16px}
+.gap{height:10px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;font-size:11px;font-weight:750;letter-spacing:.2px}
+.pill.green{background:rgba(52,211,153,.13);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.pill.red{background:rgba(248,113,113,.13);color:var(--red);border:1px solid rgba(248,113,113,.32)}
+.pill.amber{background:rgba(251,191,36,.13);color:var(--amber);border:1px solid rgba(251,191,36,.3)}
+.pill.gray{background:rgba(148,163,255,.07);color:var(--dim);border:1px solid var(--line)}
+.chip{display:inline-flex;align-items:center;font-family:var(--mono);font-size:10.5px;background:rgba(148,163,255,.08);border:1px solid var(--line);color:var(--dim);padding:2px 8px;border-radius:6px}
+.spark{display:flex;align-items:flex-end;gap:3px;height:58px;margin-top:12px}
+.spark i{flex:1;min-width:4px;min-height:2px;border-radius:3px 3px 0 0;background:linear-gradient(180deg,var(--acc),rgba(34,211,238,.35));opacity:.9;transition:.18s}
+.spark i:hover{opacity:1;background:linear-gradient(180deg,var(--acc2),var(--acc))}
+.spark .empty{color:var(--faint);font-size:11px}
+.bars{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.bar-row{display:grid;grid-template-columns:minmax(90px,150px) 1fr 44px;align-items:center;gap:10px;font-size:11.5px;color:var(--dim)}
+.bar-row .nm{font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{height:8px;border-radius:99px;background:rgba(148,163,255,.08);overflow:hidden;display:block}
+.bar-fill{height:100%;border-radius:99px;background:var(--grad);min-width:2px;display:block}
+.bar-row .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
+
+/* ---------- usage donut hero ---------- */
+.usage-hero{margin-bottom:18px;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,rgba(79,141,255,.10),rgba(34,211,238,.04) 55%,var(--panel))}
+.usage-hero::after{content:"";position:absolute;right:-90px;top:-90px;width:260px;height:260px;border-radius:50%;
+  background:radial-gradient(circle,rgba(79,141,255,.16),transparent 65%);pointer-events:none}
+.usage-inner{display:flex;flex-direction:column;gap:14px;position:relative;z-index:1}
+.donut-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.donut-head .k2{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--acc2)}
+.chips{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.chip2{font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;padding:3px 9px;border-radius:99px;
+  background:rgba(148,163,255,.10);border:1px solid var(--line);color:var(--dim)}
+.donut-body{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.donut-side{display:flex;flex-direction:column;align-items:center;gap:6px}
+.donut{filter:drop-shadow(0 8px 24px rgba(79,141,255,.28))}
+.donut-num{font-size:22px;font-weight:800;fill:var(--text);font-variant-numeric:tabular-nums}
+.donut-cap{font-size:9px;letter-spacing:1.6px;fill:var(--faint);text-transform:uppercase;font-weight:700}
+.donut-caption{font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:1.2px}
+.donut-list{flex:1;min-width:230px;display:flex;flex-direction:column;gap:8px}
+.donut-row{display:grid;grid-template-columns:10px minmax(74px,110px) 1fr auto auto;align-items:center;gap:10px;font-size:12px}
+.donut-row .dot{width:9px;height:9px;border-radius:3px;box-shadow:0 0 8px rgba(79,141,255,.5)}
+.donut-row .nm{font-family:var(--mono);color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.donut-row .track{height:7px;border-radius:99px;background:rgba(148,163,255,.08);overflow:hidden;display:block}
+.donut-row .fill{height:100%;border-radius:99px;display:block;min-width:2px;opacity:.9}
+.donut-row .n{font-variant-numeric:tabular-nums;color:var(--text);font-weight:700}
+.donut-row .pct{font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums;width:38px;text-align:right}
+.spark-wrap{border-top:1px solid var(--line);padding-top:12px}
+.spark-cap{font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px}
+
+/* ---------- controls ---------- */
+button{
+  font-family:var(--font);font-weight:650;font-size:12.5px;letter-spacing:.2px;
+  background:linear-gradient(135deg,rgba(79,141,255,.26),rgba(34,211,238,.12));
+  border:1px solid rgba(79,141,255,.45);color:#d9e8ff;padding:8px 15px;border-radius:9px;cursor:pointer;transition:.16s;
+}
+button:hover{background:linear-gradient(135deg,rgba(79,141,255,.38),rgba(34,211,238,.2));box-shadow:0 4px 16px rgba(79,141,255,.26);transform:translateY(-1px)}
+button:active{transform:translateY(0)}
+button.primary{background:var(--grad);border-color:transparent;color:#041224;font-weight:800}
+button.primary:hover{box-shadow:0 6px 20px rgba(34,211,238,.35)}
+button.ghost{background:transparent;border-color:var(--line);color:var(--dim)}
+button.ghost:hover{color:var(--text);background:rgba(148,163,255,.07);box-shadow:none}
+button.danger{background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.4);color:#fecaca}
+button.danger:hover{background:rgba(248,113,113,.22);box-shadow:0 4px 16px rgba(248,113,113,.2)}
+button.green{background:rgba(52,211,153,.13);border-color:rgba(52,211,153,.4);color:#a7f3d0}
+button.green:hover{background:rgba(52,211,153,.24)}
+button.sm{padding:5px 10px;font-size:11px;border-radius:8px}
+button:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+input,select,textarea{
+  font-family:var(--font);background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--text);
+  border-radius:9px;padding:9px 12px;font-size:13px;width:100%;outline:none;transition:.16s;
+}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+input:focus,select:focus,textarea:focus{border-color:rgba(79,141,255,.55);box-shadow:0 0 0 3px rgba(79,141,255,.13)}
+select option{background:#0a0f1c}
+textarea{font-family:var(--mono);font-size:12px;line-height:1.55;min-height:170px;resize:vertical}
+label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--faint);margin:12px 0 5px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.btnrow{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.18)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.9px;color:var(--faint);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);background:rgba(148,163,255,.03);position:sticky;top:0;z-index:1}
+td{padding:9px 14px;border-bottom:1px solid rgba(148,163,255,.05)}
+tr:last-child td{border-bottom:none}
+td.mono,td code{font-family:var(--mono);font-size:12px}
+tbody tr{transition:.12s}
+tbody tr:hover td{background:rgba(148,163,255,.045)}
+/* test results */
+.fb{font-size:10px;color:var(--dim);font-family:var(--mono);display:block;margin-top:3px}
+button.direct{font-size:11px;padding:3px 8px;border-radius:6px;font-weight:600}
+
+/* ---------- chain ---------- */
+.chain{display:flex;flex-direction:column;gap:7px}
+.chain-item{
+  display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:10px;padding:10px 14px;cursor:grab;transition:.15s;
+}
+.chain-item:hover{border-color:rgba(79,141,255,.45);background:rgba(79,141,255,.06)}
+.chain-item.dragging{opacity:.55;box-shadow:0 10px 26px rgba(0,0,0,.5);border-color:var(--acc);cursor:grabbing}
+.chain-item .idx{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--faint);width:28px;flex:none}
+.chain-item .grip{color:var(--faint);cursor:grab;font-size:14px;letter-spacing:2px}
+.chain-item .name{font-family:var(--mono);font-size:12.5px;font-weight:600;flex:1;word-break:break-all}
+.chain-item .prov{font-size:10.5px;font-family:var(--mono);color:var(--acc2);background:rgba(34,211,238,.09);border:1px solid rgba(34,211,238,.22);padding:2px 8px;border-radius:6px;white-space:nowrap}
+.chain-item .x{cursor:pointer;color:var(--faint);padding:2px 7px;border-radius:6px;font-size:12px}
+.chain-item .x:hover{color:var(--red);background:rgba(248,113,113,.12)}
+
+/* ---------- providers ---------- */
+.prov-card{
+  background:linear-gradient(180deg,rgba(148,163,255,.05),rgba(148,163,255,.02));
+  border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;
+  box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.05);transition:.16s;
+}
+.prov-card:hover{border-color:var(--line2)}
+.prov-card .head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.prov-card .head .name{font-weight:800;font-family:var(--mono);font-size:14px}
+.prov-card .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11.5px;color:var(--faint)}
+.prov-card .row2 code{font-family:var(--mono);color:var(--text);word-break:break-word;font-size:11.5px}
+.prov-card .mods{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.prov-card .mod{font-size:10px;font-family:var(--mono);background:rgba(148,163,255,.07);border:1px solid var(--line);padding:2px 7px;border-radius:5px;color:var(--dim)}
+.prov-card .acts{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- log ---------- */
+.log-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.log-toolbar .legend{display:flex;gap:14px;margin-left:auto;font-size:10.5px;color:var(--faint)}
+.log-toolbar .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+.log{
+  font-family:var(--mono);font-size:11px;line-height:1.6;background:rgba(0,0,0,.45);
+  border:1px solid var(--line);border-radius:12px;padding:12px 14px;max-height:440px;overflow:auto;white-space:pre-wrap;word-break:break-word;
+}
+.log .t{color:var(--faint)}
+.log .ok{color:var(--green)}
+.log .bad{color:var(--red)}
+.log .warn{color:var(--amber)}
+.log .row{display:block;padding:1px 0;border-radius:4px}
+.log .row:hover{background:rgba(148,163,255,.05)}
+
+/* ---------- snapshots ---------- */
+.snap{
+  display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);
+  border-radius:11px;padding:11px 14px;margin-bottom:8px;transition:.15s;flex-wrap:wrap;
+}
+.snap:hover{border-color:var(--line2)}
+.snap .id{font-family:var(--mono);font-size:12px;font-weight:650}
+.snap .when{font-size:11px;color:var(--faint);margin-left:auto;font-variant-numeric:tabular-nums}
+.snap .acts{display:flex;gap:6px}
+
+/* ---------- toast ---------- */
+.toast-wrap{position:fixed;bottom:24px;right:20px;z-index:70;display:flex;flex-direction:column;gap:8px;max-width:min(420px,90vw)}
+.toast{
+  background:rgba(12,17,30,.96);border:1px solid var(--line2);border-radius:11px;padding:11px 16px;
+  font-size:12.5px;box-shadow:var(--shadow);animation:slide .22s cubic-bezier(.2,.7,.3,1);backdrop-filter:blur(12px);
+  display:flex;align-items:center;gap:10px;
+}
+.toast.ok{border-left:3px solid var(--green)}
+.toast.err{border-left:3px solid var(--red)}
+.toast.info{border-left:3px solid var(--acc)}
+@keyframes slide{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+
+/* ---------- modal ---------- */
+.modal-back{position:fixed;inset:0;background:rgba(2,4,10,.68);backdrop-filter:blur(6px);z-index:60;display:grid;place-items:center;opacity:0;pointer-events:none;transition:.18s;padding:20px}
+.modal-back.show{opacity:1;pointer-events:auto}
+.modal{
+  width:min(780px,94vw);max-height:86vh;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,#0b101d,#080c16);border:1px solid var(--line2);border-radius:16px;
+  box-shadow:var(--shadow);transform:translateY(12px) scale(.98);transition:.18s;overflow:hidden;
+}
+.modal-back.show .modal{transform:none}
+.modal-head{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--line);flex:none}
+.modal-head h3{font-size:14.5px;flex:1;word-break:break-word}
+.modal-body{padding:16px 18px;overflow:auto}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:13px 18px;border-top:1px solid var(--line);flex:none;flex-wrap:wrap}
+pre.code{font-family:var(--mono);font-size:11px;line-height:1.55;background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:10px;padding:12px 14px;max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-word;color:var(--dim)}
+.spin{width:14px;height:14px;border:2px solid rgba(79,141,255,.3);border-top-color:var(--acc);border-radius:50%;animation:rot .7s linear infinite;display:inline-block;vertical-align:-2px}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ---------- services / budget / alerts ---------- */
+.service-card.down{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.05)}
+.service-card .srv-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:10px}
+.service-card .srv-actions{margin-top:10px;display:flex;gap:8px}
+.mini{font-size:12px;color:var(--dim)}
+.mini label{display:block}
+input,select{font-family:var(--font)}
+input::placeholder{color:var(--faint)}
+.bprov{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:rgba(0,0,0,.18);transition:.15s}
+.bprov:hover{border-color:var(--line2)}
+.bprov.over{border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.05)}
+.bprov .bp-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.bprov .bp-head b{font-size:12.5px}
+.bprov .bp-head .tok{font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;gap:8px}
+.budget-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.note-card p{font-size:12px;color:var(--dim);line-height:1.7}
+.note-card b{color:var(--text)}
+.chip.green{color:var(--green);border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.10)}
+.chip.red{color:var(--red);border-color:rgba(248,113,113,.38);background:rgba(248,113,113,.10)}
+.chip.cyan{color:var(--acc2);border-color:rgba(34,211,238,.30);background:rgba(34,211,238,.07)}
+.arule{display:flex;gap:10px;align-items:flex-start;padding:10px 8px;border-bottom:1px solid var(--line);transition:.15s}
+.arule:last-child{border-bottom:none}
+.arule:hover{background:rgba(148,163,255,.05)}
+.arule input[type=checkbox]{accent-color:var(--acc);width:auto;margin-top:9px;flex:none}
+.arule .a-body{flex:1;min-width:0}
+.arule .a-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.arule .a-head b{font-size:13px}
+.arule .a-desc{font-size:11.5px;color:var(--dim);margin-top:3px}
+.evt-row{display:flex;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--line);font-size:12px}
+.evt-row:last-child{border-bottom:none}
+.evt-row .when{color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+.evt-row .msg{flex:1;color:var(--dim);min-width:0}
+.evt-row .chip{flex:none}
+
+/* ---------- auth gate ---------- */
+.auth-back{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:20px;
+  background:rgba(4,6,12,.82);backdrop-filter:blur(10px) saturate(1.2)}
+.auth-card{width:100%;max-width:380px;background:linear-gradient(180deg,#0b101d,#080c16);
+  border:1px solid var(--line2);border-radius:16px;padding:26px 24px;box-shadow:var(--shadow);
+  animation:fadeUp .28s cubic-bezier(.2,.7,.3,1)}
+.auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:16px}
+.auth-brand .logo{width:38px;height:38px;border-radius:11px;flex:none;display:grid;place-items:center;
+  background:var(--grad);color:#03101f;font-weight:800;font-size:16px;
+  box-shadow:0 6px 18px rgba(79,141,255,.35), inset 0 1px 0 rgba(255,255,255,.4)}
+.auth-brand b{display:block;font-size:15px}
+.auth-brand small{display:block;color:var(--faint);font-size:9.5px;text-transform:uppercase;letter-spacing:1.4px;margin-top:2px}
+.auth-title{font-size:14px;font-weight:750;margin-bottom:4px;display:flex;align-items:center;gap:7px}
+.auth-sub{color:var(--dim);font-size:12.5px;line-height:1.6;margin-bottom:16px}
+.auth-sub code{font-family:var(--mono);font-size:11px;color:var(--acc2)}
+.auth-field label{margin:0 0 6px}
+.auth-row{display:flex;align-items:center;gap:8px;margin:12px 0 2px}
+.auth-row input[type=checkbox]{accent-color:var(--acc);width:auto;margin:0;flex:none}
+.auth-row label{margin:0;color:var(--faint);font-size:11.5px;text-transform:none;letter-spacing:0;font-weight:600;cursor:pointer}
+.auth-card .primary{width:100%;margin-top:16px;padding:10px 15px;font-size:13px}
+.auth-hint{margin-top:12px;font-size:10.5px;color:var(--faint);text-align:center;line-height:1.6}
+.auth-hint code{font-family:var(--mono);font-size:10px}
+@media (max-width:920px){
+  .donut-body{flex-direction:column;align-items:stretch}
+  .donut-side{align-self:center}
+}
+@media (max-width:920px){
+  .app{grid-template-columns:1fr}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(270px,84vw);transform:translateX(-105%);transition:.22s}
+  .sidebar.open{transform:none;box-shadow:30px 0 80px rgba(0,0,0,.55)}
+  .menu-btn{display:inline-grid}
+  .cols{grid-template-columns:1fr}
+  .row2,.row3{grid-template-columns:1fr}
+  .main{padding:20px 14px 70px}
+  .topbar{padding:0 14px}
+  .topbar .live{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">◆</div>
+      <div><b>Rig Dashboard</b><small>full rig control</small></div>
+    </div>
+    <div class="nav-label">Control</div>
+    <nav class="nav" id="navTabs"></nav>
+    <div class="side-foot">
+      <div class="row"><span class="mini-pill" id="footDot"></span><span id="footTxt">connecting…</span></div>
+      <div class="ver">v2.0 · keys masked · masters synced</div>
+    </div>
+  </aside>
+  <div class="backdrop" id="backdrop" onclick="closeSidebar()"></div>
+  <div class="content">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" onclick="toggleSidebar()" title="Menu">☰</button>
+      <div class="page-title" id="pageTitle">Overview</div>
+      <div class="top-actions">
+        <div class="live" id="liveInd"><span class="dot-pulse"></span><span id="liveTxt">connecting…</span></div>
+        <button class="ghost mini" id="autoBtn" onclick="toggleAuto()" title="Auto-refresh status">auto ●</button>
+        <button class="ghost mini" onclick="makeSnap()" title="Snapshot config now">＋ snap</button>
+        <button class="ghost mini" onclick="doRestart()" title="Restart proxy service">⭮ restart</button>
+      </div>
+    </header>
+    <main class="main" id="main"><div class="card">Loading…</div></main>
+  </div>
+</div>
+<div class="toast-wrap" id="toastWrap"></div>
+<div class="modal-back" id="modalBack" onclick="modalCloseOutside(event)"><div class="modal" id="modalBox"></div></div>
+<script>
+/* ================= helpers ================= */
+const $ = (s,el=document)=>el.querySelector(s);
+const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => n==null?"-":(n<1000?n+" ms":(n/1000).toFixed(2)+" s");
+const fmtTime = ms => new Date(ms).toLocaleString();
+const fmtNum = n => n==null?"-":(n>1e6?(n/1e6).toFixed(2)+"M":n>1e3?(n/1e3).toFixed(1)+"k":String(n));
+const fmtDur = s => { s=Math.max(0,Math.round(s||0)); if(s<60)return s+"s"; const m=Math.floor(s/60),h=Math.floor(m/60); return h?`${h}h ${m%60}m`:`${m}m ${s%60}s`; };
+const clock = () => new Date().toLocaleTimeString();
+const rel = ms => { const d=Date.now()-ms; if(!(d>=0))return"-";
+  if(d<60e3)return Math.max(1,Math.floor(d/1e3))+"s ago";
+  if(d<3600e3)return Math.floor(d/60e3)+"m ago";
+  if(d<86400e3)return Math.floor(d/3600e3)+"h ago";
+  return Math.floor(d/86400e3)+"d ago"; };
+
+/* ================= icons ================= */
+const I={
+overview:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+models:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>',
+chain:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+providers:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 6.5h.01M6 17.5h.01"/></svg>',
+keys:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>',
+proxy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg>',
+snapshots:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
+services:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="6" height="6" rx="1.5"/><rect x="16" y="6" width="6" height="6" rx="1.5"/><rect x="2" y="16" width="6" height="6" rx="1.5"/><rect x="16" y="16" width="6" height="6" rx="1.5"/><path d="M8 9h8M8 19h8M11 12v4"/></svg>',
+budget:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M15.5 9.5c-.6-1-1.9-1.7-3.5-1.7-2 0-3 1-3 2.2 0 1.3 1 1.7 3 2.2s3 .9 3 2.2c0 1.2-1 2.2-3 2.2-1.6 0-2.9-.7-3.5-1.7"/></svg>',
+alerts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
+};
+
+const TABS=[
+  {id:"overview",label:"Overview",icon:I.overview},
+  {id:"models",label:"Models",icon:I.models},
+  {id:"chain",label:"Chain",icon:I.chain},
+  {id:"providers",label:"Providers",icon:I.providers},
+  {id:"keys",label:"Keys",icon:I.keys},
+  {id:"settings",label:"Settings",icon:I.settings},
+  {id:"proxy",label:"Proxy & Logs",icon:I.proxy},
+  {id:"snapshots",label:"Snapshots",icon:I.snapshots},
+  {id:"services",label:"Services",icon:I.services},
+  {id:"budget",label:"Budget",icon:I.budget},
+  {id:"alerts",label:"Alerts",icon:I.alerts},
+];
+let state=null, activeTab="overview", autoRefr=true, sweeping=false, showProvEditor=false, editingProv=null;
+
+/* ================= toast ================= */
+function toast(msg,type="info"){
+  const el=document.createElement("div");
+  el.className=`toast ${type}`;el.innerHTML=msg;
+  $("#toastWrap").appendChild(el);
+  setTimeout(()=>{el.style.opacity="0";el.style.transition="opacity .3s";setTimeout(()=>el.remove(),320)},type==="err"?6000:3200);
+}
+
+/* ================= modal / confirm ================= */
+function openModal(html){$("#modalBox").innerHTML=html;$("#modalBack").classList.add("show");}
+function closeModal(){$("#modalBack").classList.remove("show");window.__modalRes=null;}
+function modalResolve(v){const f=window.__modalRes;window.__modalRes=null;closeModal();if(f)f(v);}
+function modalCloseOutside(e){if(e.target.id==="modalBack")modalResolve(false);}
+function askConfirm(title,msg,confirmLabel="Confirm",danger=true){
+  return new Promise(res=>{
+    window.__modalRes=res;
+    openModal(`<div class="modal-head"><h3>${esc(title)}</h3><button class="icon-btn" onclick="modalResolve(false)">✕</button></div>
+      <div class="modal-body" style="font-size:13px;color:var(--dim);line-height:1.6">${msg}</div>
+      <div class="modal-foot"><button class="ghost" onclick="modalResolve(false)">Cancel</button>
+      <button class="${danger?"danger":"primary"}" onclick="modalResolve(true)">${esc(confirmLabel)}</button></div>`);
+  });
+}
+async function copyText(t){try{await navigator.clipboard.writeText(t);toast("Copied to clipboard","ok");}catch{toast("Copy failed","err");}}
+
+/* ================= api + auth ================= */
+let dashToken = localStorage.getItem("dash_token") || "";
+function apiHeaders(extra){const h={...(extra||{})};if(!h["content-type"])h["content-type"]="application/json";if(dashToken)h["authorization"]="Bearer "+dashToken;return h;}
+async function api(path,opts={}){
+  try{
+    const r=await fetch(path,{headers:apiHeaders(opts.headers),...opts});
+    const j=await r.json().catch(()=>({ok:false}));
+    if(r.status===401 && j.auth){ showAuthPrompt(); throw new Error("auth required"); }
+    if(!r.ok && !j.ok) throw new Error(j.error||("HTTP "+r.status));
+    return j;
+  }catch(e){
+    if(e instanceof TypeError) throw new Error("API unreachable");
+    throw e;
+  }
+}
+async function apiAuthStatus(){try{return await api("/api/auth");}catch{return{required:false};}}
+function showAuthPrompt(){
+  if($("#authBox")) return;
+  const wrap=$("#authBox") || (()=>{const d=document.createElement("div");d.id="authBox";d.className="auth-back";document.body.appendChild(d);return d;})();
+  wrap.innerHTML=`<div class="auth-card">
+    <div class="auth-brand"><div class="logo">◆</div><div><b>Rig Dashboard</b><small>anthropic-shim control</small></div></div>
+    <div class="auth-title">🔒 Token required</div>
+    <p class="auth-sub">This panel is token-gated. Enter the dashboard token (<code>DASH_TOKEN</code>) to unlock control.</p>
+    <div class="auth-field"><label for="authTok">Dashboard token</label>
+      <input id="authTok" type="password" placeholder="paste token…" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitAuth()"/></div>
+    <div class="auth-row"><input id="authRemember" type="checkbox" checked/><label for="authRemember">Remember in this browser</label></div>
+    <button class="primary" onclick="submitAuth()">Unlock →</button>
+    <div class="auth-hint">Token is set via <code>DASH_TOKEN</code> on the rig-dashboard service.<br>Stored only in this browser's localStorage when remembered.</div>
+  </div>`;
+  setTimeout(()=>{const t=$("#authTok");if(t)t.focus();},60);
+}
+async function submitAuth(){
+  const t=$("#authTok"); if(!t) return;
+  const attempt=t.value.trim();
+  if(!attempt){toast("Enter the dashboard token","err");return;}
+  const remember=$("#authRemember")?.checked!==false;
+  const saved=dashToken; dashToken=attempt;
+  try{
+    await api("/api/state");
+    if(remember)localStorage.setItem("dash_token",attempt); else localStorage.removeItem("dash_token");
+    const b=$("#authBox"); if(b)b.remove();
+    toast("Authenticated","ok");refreshState();
+  }catch(e){
+    dashToken=saved;
+    toast("Token rejected: "+esc(e.message),"err");
+  }
+}
+async function refreshState(){state=await api("/api/state");touchLive(true);render();}
+
+/* ================= tabs & render ================= */
+function renderNav(){
+  $("#navTabs").innerHTML=TABS.map(t=>`<div class="nav-item ${t.id===activeTab?"active":""}" data-tab="${t.id}">${t.icon}<span>${t.label}</span></div>`).join("");
+  $$("#navTabs .nav-item").forEach(el=>el.onclick=()=>{activeTab=el.dataset.tab;render();closeSidebar();});
+}
+const VIEW={overview:viewOverview,models:viewModels,chain:viewChain,providers:viewProviders,keys:viewKeys,settings:viewSettings,proxy:viewProxy,snapshots:viewSnapshots,services:viewServices,budget:viewBudget,alerts:viewAlerts};
+function render(){
+  renderNav();
+  const tab=TABS.find(t=>t.id===activeTab)||TABS[0];
+  $("#pageTitle").textContent=tab.label;
+  $("#main").innerHTML=`<div class="page">${(VIEW[activeTab]||viewOverview)()}</div>`;
+  wire(activeTab);
+}
+function go(tab){activeTab=tab;render();window.scrollTo({top:0,behavior:"smooth"});}
+function wire(tab){
+  if(tab==="chain")initChainDrag();
+  if(tab==="proxy"){refreshLog();loadShimHealth();}
+  if(tab==="snapshots")refreshSnaps();
+  if(tab==="overview"){loadStats();loadUsage();}
+  if(tab==="services")loadServices();
+  if(tab==="budget")loadBudget();
+  if(tab==="alerts"){loadAlerts();}
+}
+
+/* ================= sidebar (mobile) ================= */
+function toggleSidebar(){$("#sidebar").classList.toggle("open");$("#backdrop").classList.toggle("show");}
+function closeSidebar(){$("#sidebar").classList.remove("open");$("#backdrop").classList.remove("show");}
+
+/* ============ live indicator + background poll
+   Polls state every 5s but NEVER re-renders: patches the live badge and
+   status pills only, so in-flight tests/sweeps/unsaved edits survive. ==== */
+function toggleAuto(){
+  autoRefr=!autoRefr;
+  const b=$("#autoBtn"); if(!b) return;
+  b.textContent=autoRefr?"auto ●":"auto ○";
+  b.classList.toggle("off",!autoRefr);
+  if(autoRefr) pump();
+}
+function touchLive(ok){
+  const li=$("#liveInd"); if(!li) return;
+  li.classList.toggle("on",!!ok);
+  li.classList.toggle("off",!ok);
+  const t=$("#liveTxt"); if(t) t.textContent=ok?`:9087 · ${clock()}`:"API unreachable";
+  const d=$("#footDot"); if(d){d.classList.toggle("on",!!ok);d.classList.toggle("off",!ok);}
+  const f=$("#footTxt"); if(f) f.textContent=ok?"proxy control online":"dashboard API offline";
+}
+function patchLive(){
+  const s=(state&&state.status)||{};
+  $$("[data-live]").forEach(el=>{
+    const k=el.dataset.live;
+    if(k==="proxy"){
+      const up=!!s.proxyAlive;
+      el.className="pill "+(up?"green":"red");
+      el.textContent=up?"● RUNNING":"○ DOWN";
+    }else if(k==="pid"){
+      el.textContent=s.pid||"-";
+    }
+  });
+}
+async function pump(){
+  try{
+    state=await api("/api/state");touchLive(true);patchLive();
+    if(activeTab==="proxy"){
+      loadShimHealth();
+      // Only auto-refresh the log itself while "auto-scroll" is on — that
+      // checkbox is already the user's existing signal for "keep me at the
+      // live tail." Respecting it here means someone who unchecked it to
+      // read older lines doesn't get yanked back to the top by a background
+      // poll replacing #logBox's content out from under them.
+      if($("#logAuto")?.checked) refreshLog();
+    }
+  }
+  catch{touchLive(false);}
+}
+
+/* ================= init ================= */
+window.onload=async()=>{
+  renderNav();
+  try{
+    const a=await apiAuthStatus();
+    if(a.required&&!dashToken){showAuthPrompt();touchLive(false);}
+    else{await refreshState();touchLive(true);}
+  }
+  catch(e){
+    touchLive(false);
+    $("#main").innerHTML=`<div class="card"><h2 style="margin-bottom:8px;font-size:16px">Cannot reach dashboard API</h2>
+      <p style="color:var(--dim);font-size:13px">${esc(e.message)}</p>
+      <p style="margin-top:10px;color:var(--faint);font-size:12px">Is <code>bin/rig-dashboard.mjs</code> running on :9087? Try <code>rc-service rig-dashboard restart</code></p></div>`;
+  }
+  setInterval(()=>{if(autoRefr)pump();},5000);
+};
+
+/* ================= overview ================= */
+function viewOverview(){
+  if(!state) return "";
+  const def=state.conf.FALLBACK_MODEL, master=state.settingsEnv.ANTHROPIC_MODEL;
+  const nProv=Object.keys(state.providers||{}).length;
+  return `
+  <div class="hd"><h1>Overview</h1><p>Live rig status · auto-poll never disturbs edits or running tests</p></div>
+  <div class="card usage-hero"><div class="usage-inner" id="ovUsage"><span class="empty">loading usage…</span></div></div>
+  <div class="grid">
+    <div class="card row"><div class="k">Proxy service</div>
+      <div class="v"><span class="pill green" data-live="proxy">● RUNNING</span></div>
+      <div class="sub">pid <span data-live="pid">-</span> · listens :9086</div></div>
+    <div class="card row"><div class="k">Fallback default</div><div class="v mono">${esc(def||"-")}</div><div class="sub">FALLBACK_MODEL · unknown/claude-* ids</div></div>
+    <div class="card row"><div class="k">Developer model</div><div class="v mono">${esc(master||"-")}</div><div class="sub">ANTHROPIC_MODEL · settings env</div></div>
+    <div class="card row"><div class="k">Providers</div><div class="v lg">${nProv}</div><div class="sub">upstream endpoints</div></div>
+    <div class="card row"><div class="k">Known models</div><div class="v lg">${state.knownModels.length}</div><div class="sub">across all providers</div></div>
+    <div class="card row"><div class="k">Chain depth</div><div class="v lg">${state.chain.length}</div><div class="sub">failover candidates</div></div>
+  </div>
+  <div class="cols">
+    <div class="card"><div class="k">Requests · last 24h</div><div class="spark" id="ovSpark"><span class="empty">loading stats…</span></div></div>
+    <div class="card"><div class="k">Attempts by provider</div><div class="bars" id="ovBars"><span class="empty" style="font-size:11px;color:var(--faint)">loading stats…</span></div></div>
+  </div>
+  <div class="section-title">Failover chain</div>
+  <div class="card mb">${chainPills()}</div>
+  <div class="section-title">Quick actions</div>
+  <div class="grid">
+    <div class="card"><div class="k" style="margin-bottom:4px">Test a model</div>
+      <label>Model id</label>
+      <select id="ovModel">${state.knownModels.map(m=>`<option>${esc(m)}</option>`).join("")}</select>
+      <div class="gap"></div>
+      <button class="primary" onclick="quickTest()">▶ Run test</button> <span id="ovResult"></span></div>
+    <div class="card"><div class="k" style="margin-bottom:4px">Maintenance</div>
+      <div class="gap"></div>
+      <button onclick="doRestart()">⭮ Restart proxy</button>
+      <button class="ghost" onclick="makeSnap()">Snapshot config</button>
+      <button class="ghost" onclick="go('proxy')">Open logs</button></div>
+  </div>`;
+}
+function chainPills(){
+  if(!state) return "";
+  return state.chain.map(c=>{
+    const [m,p]=c.includes("@")?c.split("@",2):[c,"-"];
+    return `<span class="chip" style="margin:0 6px 6px 0">${esc(m)} <b style="color:var(--acc2);font-weight:600">@${esc(p||"-")}</b></span>`;
+  }).join("")||'<span style="color:var(--faint);font-size:12px">chain empty</span>';
+}
+async function loadStats(){
+  try{
+    const s=await api("/api/stats");
+    renderSpark(s.hourly||[]);
+    renderBars(s.perProvider||[]);
+  }catch{}
+}
+function renderSpark(hourly){
+  const el=$("#ovSpark"); if(!el) return;
+  if(!hourly.length){el.innerHTML='<span class="empty">no data</span>';return;}
+  const max=Math.max(1,...hourly);
+  el.innerHTML=hourly.map((n,i)=>{
+    const hAgo=23-i;
+    const label=`${hAgo===0?"now":hAgo+"h ago"}: ${n} request${n===1?"":"s"}`;
+    return `<i style="height:${Math.max(4,Math.round(n/max*100))}%" title="${esc(label)}"></i>`;
+  }).join("");
+}
+function renderBars(perProvider){
+  const el=$("#ovBars"); if(!el) return;
+  if(!perProvider.length){el.innerHTML='<span class="empty" style="font-size:11px;color:var(--faint)">no attempts found in recent log</span>';return;}
+  const max=Math.max(...perProvider.map(p=>p.attempts));
+  el.innerHTML=perProvider.slice(0,8).map(p=>`
+    <div class="bar-row"><span class="nm" title="${esc(p.provider)}">${esc(p.provider)}</span>
+    <span class="bar-track"><span class="bar-fill" style="width:${Math.max(3,Math.round(p.attempts/max*100))}%"></span></span>
+    <span class="n">${p.attempts}</span></div>`).join("");
+}
+async function loadUsage(){
+  try{
+    const u=await api("/api/usage");
+    renderUsage(u);
+  }catch{}
+}
+const USAGE_PALETTE=["#4f8dff","#22d3ee","#a78bfa","#34d399","#fbbf24","#f87171","#f472b6","#60a5fa"];
+function usageDonut(perProvider,total){
+  const R=52, C=2*Math.PI*R, gap=2;
+  let acc=0;
+  const segs=perProvider.map((p,i)=>{
+    const frac=total?p.total/total:0;
+    const len=Math.max(0,frac*C-gap);
+    const rot=acc/total*360;
+    acc+=p.total;
+    return `<circle cx="70" cy="70" r="${R}" fill="none"
+      stroke="${USAGE_PALETTE[i%USAGE_PALETTE.length]}" stroke-width="13"
+      stroke-dasharray="${len} ${C-len}" transform="rotate(${rot} 70 70)"
+      stroke-linecap="butt" opacity="0.95"><title>${esc(p.provider)}: ${fmtNum(p.total)} tok</title></circle>`;
+  }).join("");
+  return `<svg class="donut" width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="token usage by provider">
+    ${segs||`<circle cx="70" cy="70" r="${R}" fill="none" stroke="rgba(148,163,255,.12)" stroke-width="13"/>`}
+    <text x="70" y="66" text-anchor="middle" class="donut-num">${fmtNum(total)}</text>
+    <text x="70" y="84" text-anchor="middle" class="donut-cap">tokens</text>
+  </svg>`;
+}
+function renderUsage(u){
+  const el=$("#ovUsage"); if(!el) return;
+  if(!u || !u.requests){el.innerHTML='<span class="empty" style="font-size:11px;color:var(--faint)">no usage recorded yet</span>';return;}
+  const pp=u.perProvider||[];
+  const totMax=Math.max(1,...pp.map(p=>p.total));
+  const rows=pp.slice(0,7).map((p,i)=>{
+    const pct=u.total?Math.round(p.total/u.total*100):0;
+    return `<div class="donut-row" title="${esc(p.provider)}: ${fmtNum(p.total)} tok (${pct}%)">
+      <span class="dot" style="background:${USAGE_PALETTE[i%USAGE_PALETTE.length]}"></span>
+      <span class="nm">${esc(p.provider)}</span>
+      <span class="track"><span class="fill" style="width:${Math.max(3,Math.round(p.total/totMax*100))}%;background:${USAGE_PALETTE[i%USAGE_PALETTE.length]}"></span></span>
+      <span class="n">${fmtNum(p.total)}</span><span class="pct">${pct}%</span></div>`;
+  }).join("")||'<div class="empty">no usage</div>';
+  const spark=`<div class="spark" style="height:44px">${(u.hourlyTokens||[]).map((n,i)=>{
+    const max=Math.max(1,...(u.hourlyTokens||[]));
+    const hAgo=23-i;
+    return `<i style="height:${Math.max(4,Math.round(n/max*100))}%" title="${hAgo===0?"now":hAgo+"h ago"}: ${fmtNum(n)} tok"></i>`;
+  }).join("")}</div>`;
+  el.innerHTML=`
+    <div class="donut-head">
+      <span class="k2">Token usage</span>
+      <span class="chips"><span class="chip2">${u.requests} req</span><span class="chip2">in ${fmtNum(u.totalIn)}</span><span class="chip2">out ${fmtNum(u.totalOut)}</span></span>
+    </div>
+    <div class="donut-body">
+      <div class="donut-side">${usageDonut(pp,u.total)}
+        <div class="donut-caption">all providers</div></div>
+      <div class="donut-list">${rows}</div>
+    </div>
+    <div class="spark-wrap"><div class="spark-cap">last 24h</div>${spark}</div>`;
+}
+async function quickTest(){
+  const m=$("#ovModel")?.value; if(!m) return;
+  $("#ovResult").innerHTML=`<span class="spin"></span> <span style="font-size:11.5px;color:var(--dim)">testing…</span>`;
+  try{
+    const r=await api("/api/test",{method:"POST",body:JSON.stringify({model:m})});
+    const fb=r.firstByteMs?` <span class="fb" style="display:inline;color:var(--dim)">1st byte ${fmt(r.firstByteMs)}</span>`:"";
+    $("#ovResult").innerHTML=`<span class="pill ${r.ok?"green":"red"}">${r.ok?r.status:"fail"} · ${fmt(r.ms)}</span>${fb} ${r.error?`<span class="fb" style="display:inline;color:var(--red)">${esc(r.error)}</span>`:""}`;
+  }catch(e){$("#ovResult").innerHTML=`<span class="pill red">${esc(e.message)}</span>`;}
+}
+
+/* ================= models ================= */
+function viewModels(){
+  if(!state) return "";
+  return `
+  <div class="hd"><h1>Models</h1><p>Default model, developer models & liveness probes</p>
+    <div class="spacer"><button class="ghost" onclick="refreshState()">↻ Refresh</button></div></div>
+  <div class="card mb"><label>Fallback default model (unknown / claude-* ids)</label>
+    <div class="row2">
+      <select id="fallbackModel">${state.knownModels.map(m=>`<option ${m===(state.conf.FALLBACK_MODEL||"")?"selected":""}>${esc(m)}</option>`).join("")}</select>
+      <div class="btnrow"><button class="primary" onclick="saveModel('fallbackModel','FALLBACK_MODEL')">Save default</button>
+      <button class="ghost" id="sweepBtn" onclick="quickSweep()">⚡ Liveness sweep</button></div>
+    </div></div>
+  <div class="card mb"><label>Developer models (settings env)</label>
+    <div class="row2">
+      <div><span style="font-size:11px;color:var(--faint)">ANTHROPIC_MODEL</span>
+        <select id="devModel">${state.knownModels.map(m=>`<option ${m===(state.settingsEnv.ANTHROPIC_MODEL||"")?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
+      <div><span style="font-size:11px;color:var(--faint)">ANTHROPIC_SMALL_FAST_MODEL</span>
+        <select id="smallModel">${state.knownModels.map(m=>`<option ${m===(state.settingsEnv.ANTHROPIC_SMALL_FAST_MODEL||"")?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
+    </div>
+    <div class="gap"></div>
+    <button class="primary" onclick="saveDevModel()">Save developer models</button></div>
+  <div class="card mb"><input placeholder="Filter models…" oninput="filterModels(this.value)"></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Model id</th><th style="width:110px">Chain</th><th style="width:110px">Direct</th><th style="width:180px">Result</th></tr></thead>
+    <tbody>${state.knownModels.map((m,i)=>`<tr id="mtr-${i}" data-m="${esc(m.toLowerCase())}"><td class="mono">${esc(m)}</td>
+      <td><button class="ghost sm" onclick="testOne(${i})">test</button></td>
+      <td><button class="direct" onclick="testOne(${i},true)" title="Direct probe of this model's provider — no chain failover">direct</button></td>
+      <td id="mres-${i}"></td></tr>`).join("")}</tbody>
+  </table></div>`;
+}
+function filterModels(v){
+  const q=v.trim().toLowerCase();
+  $$("tbody tr[data-m]").forEach(tr=>{tr.style.display=!q||tr.dataset.m.includes(q)?"":"none";});
+}
+async function testOne(i, direct){
+  const m=state.knownModels[i],row=$("#mres-"+i);
+  if(!row) return;
+  row.innerHTML=`<span class="spin"></span>`;
+  try{
+    const r=await api("/api/test",{method:"POST",body:JSON.stringify({model:m,direct:!!direct})});
+    const fb=r.firstByteMs?`<span class="fb">1st byte ${fmt(r.firstByteMs)} · ${esc(r.snippet||"")}</span>`:"";
+    row.innerHTML=`<span class="pill ${r.ok?"green":"red"}">${r.ok?r.status:"fail"} · ${fmt(r.ms)}${r.pinned?` <span class="pill gray">@${esc(r.pinned)}</span>`:""}</span>${(r.error?`<span class="fb" style="color:var(--red)">${esc(r.error)}</span>`:"")}${fb}`;
+  }catch(e){row.innerHTML='<span class="pill red">err</span>';}
+}
+async function quickSweep(){
+  if(sweeping) return;
+  sweeping=true;
+  const b=$("#sweepBtn"); if(b){b.disabled=true;b.innerHTML='<span class="spin"></span> sweeping…';}
+  toast(`Liveness sweep started · ${state.knownModels.length} models`,"info");
+  for(let i=0;i<state.knownModels.length;i++){
+    await testOne(i);
+    await new Promise(r=>setTimeout(r,250));
+  }
+  sweeping=false;
+  if(b){b.disabled=false;b.textContent="⚡ Liveness sweep";}
+  toast("Sweep complete","ok");
+}
+async function saveModel(selId,key){
+  const v=$("#"+selId).value;
+  try{
+    await api("/api/apply",{method:"POST",body:JSON.stringify({confVars:{[key]:v},restart:true})});
+    toast(`Default → <b>${esc(v)}</b>`,"ok");refreshState();
+  }catch(e){toast(esc(e.message),"err");}
+}
+async function saveDevModel(){
+  const body={settingsEnv:{ANTHROPIC_MODEL:$("#devModel").value,ANTHROPIC_SMALL_FAST_MODEL:$("#smallModel").value}};
+  try{await api("/api/apply",{method:"POST",body:JSON.stringify(body)});toast("Developer models saved","ok");refreshState();}
+  catch(e){toast(esc(e.message),"err");}
+}
+
+/* ================= chain ================= */
+function viewChain(){
+  if(!state) return "";
+  return `
+  <div class="hd"><h1>Failover chain</h1><p>Order providers try · drag to reorder · first = primary</p>
+    <div class="spacer"><button class="primary" onclick="saveChain()">Save & restart</button></div></div>
+  <div class="card mb"><div class="chain" id="chainList">
+    ${state.chain.map((c,i)=>chainRow(c,i)).join("")||'<span style="color:var(--faint);font-size:12px">chain empty — add entries below</span>'}
+  </div></div>
+  <div class="section-title">Add entry</div>
+  <div class="card">
+    <div class="row2">
+      <div><label>Model</label><select id="newChainModel">${state.knownModels.map(m=>`<option>${esc(m)}</option>`).join("")}</select></div>
+      <div><label>Provider</label><select id="newChainProv">${Object.keys(state.providers||{}).map(p=>`<option>${esc(p)}</option>`).join("")}</select></div>
+    </div>
+    <div class="gap"></div>
+    <button class="primary" onclick="addChain()">＋ Add to chain</button>
+  </div>`;
+}
+function chainRow(c,i){
+  const [m,p]=c.includes("@")?c.split("@",2):[c,""];
+  return `<div class="chain-item" draggable="true" data-i="${i}">
+    <span class="idx">#${i+1}</span><span class="grip">⠿</span>
+    <span class="name">${esc(m)}</span>
+    <span class="prov">${esc(p||"default")}</span>
+    <span class="x" onclick="rmChain(${i})" title="Remove">✕</span></div>`;
+}
+function initChainDrag(){
+  const list=$("#chainList"); if(!list) return;
+  $$(".chain-item",list).forEach(it=>{
+    it.addEventListener("dragstart",()=>it.classList.add("dragging"));
+    it.addEventListener("dragend",()=>{it.classList.remove("dragging");renumberChain();});
+    it.addEventListener("dragover",e=>{
+      e.preventDefault();
+      const cur=$(".chain-item.dragging"); if(!cur) return;
+      const after=getDragAfterElement(list,e.clientY);
+      if(after==null) list.appendChild(cur); else list.insertBefore(cur,after);
+    });
+  });
+}
+function renumberChain(){$$(".chain-item").forEach((it,i)=>{const n=it.querySelector(".idx");if(n)n.textContent="#"+(i+1);});}
+function getDragAfterElement(container,y){
+  const els=[...container.querySelectorAll(".chain-item:not(.dragging)")];
+  return els.reduce((closest,child)=>{
+    const box=child.getBoundingClientRect();const off=y-box.top-box.height/2;
+    if(off<0 && off>closest.offset) return {offset:off,el:child}; else return closest;
+  },{offset:-Infinity}).el;
+}
+function chainOrder(){return $$(".chain-item").map(it=>state.chain[+it.dataset.i]);}
+function rmChain(i){state.chain.splice(i,1);render();}
+function addChain(){
+  const m=$("#newChainModel").value,p=$("#newChainProv").value;
+  state.chain.push(m+"@"+p);render();
+}
+async function saveChain(){
+  const ok=await askConfirm("Apply failover chain","Save the new chain order and restart <b>anthropic-shim</b>? A snapshot is taken automatically.","Save & restart",false);
+  if(!ok) return;
+  try{
+    const chain=chainOrder();
+    await api("/api/chain",{method:"POST",body:JSON.stringify({chain,restart:true})});
+    toast("Chain saved & applied","ok");refreshState();
+  }catch(e){toast(esc(e.message),"err");}
+}
+
+/* ================= providers ================= */
+function viewProviders(){
+  if(!state) return "";
+  const provs=state.providers||{};
+  return `
+  <div class="hd"><h1>Providers</h1><p>Upstream endpoints · ${Object.keys(provs).length} configured</p>
+    <div class="spacer"><button class="primary" onclick="showProviderEditor()">＋ Add provider</button></div></div>
+  ${Object.entries(provs).map(([name,p])=>{
+    const inChain=state.chain.filter(c=>c.split("@")[1]===name).length;
+    return `
+    <div class="prov-card">
+      <div class="head">
+        <span class="name">${esc(name)}</span>
+        ${p.thinking_param?'<span class="pill amber">thinking</span>':""}
+        <span class="pill ${inChain?"green":"gray"}">${inChain?"in chain ×"+inChain:"not in chain"}</span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="ghost sm" onclick="toggleProviderInChain('${esc(name)}')" title="${inChain?"Remove all of this provider's entries from the failover chain":"Add this provider's models back into the failover chain"}">${inChain?"⏸ Pause":"▶ Resume"}</button>
+          <button class="ghost sm" onclick="editProvider('${esc(name)}')">Edit</button>
+          <button class="danger sm" onclick="delProvider('${esc(name)}')">Delete</button>
+        </div>
+      </div>
+      <div class="row2">
+        <div><span style="color:var(--faint)">url</span><br><code>${esc(p.url||"-")}</code></div>
+        <div><span style="color:var(--faint)">key</span><br><code>${esc(maskProviderKey(p.key))}</code></div>
+      </div>
+      <div class="mods">${(p.models||[]).map(m=>`<span class="mod">${esc(m)}</span>`).join("")}</div>
+    </div>`;}).join("")}
+  <div id="provEditor">${showProvEditor?provEditorHtml(editingProv):""}</div>`;
+}
+// A "$VAR" value is a reference to a conf var, not the secret itself — safe
+// to display in full. Anything else is presumed to BE the literal secret
+// (the editor's own placeholder invites pasting one directly, e.g. "sk-…"),
+// so it's masked the same way the Keys tab masks *_KEY conf vars.
+function isLiteralProviderKey(v){return !!v && !v.startsWith("$");}
+function maskProviderKey(v){
+  if(!v) return "-";
+  if(!isLiteralProviderKey(v)) return v;
+  return v.length<=10?"***":v.slice(0,5)+"·····"+v.slice(-4);
+}
+function provEditorHtml(name){
+  const p=(name&&state.providers[name])?state.providers[name]:{url:"",key:"",ua:"",models:[],thinking_param:false};
+  const keyIsSecret=isLiteralProviderKey(p.key);
+  return `<div class="section-title">${name?"Edit":"Add"} provider${name?" · "+esc(name):""}</div>
+  <div class="card">
+    <div class="row3">
+      <div><label>Name</label><input id="peName" value="${esc(name||"")}" placeholder="e.g. zen2"></div>
+      <div><label>URL</label><input id="peUrl" value="${esc(p.url||"")}" placeholder="https://…/chat/completions"></div>
+      <div><label>Key (env ref or literal)</label><input id="peKey" type="${keyIsSecret?"password":"text"}" value="${keyIsSecret?"":esc(p.key||"")}" placeholder="${keyIsSecret?"leave blank to keep "+esc(maskProviderKey(p.key)):"$ZEN_KEY or sk-…"}" autocomplete="off"></div>
+    </div>
+    <label>UA (optional)</label><input id="peUa" value="${esc(p.ua||"")}" placeholder="user-agent">
+    <label>Models (comma-separated)</label><input id="peModels" value="${esc((p.models||[]).join(", "))}" placeholder="model-a, model-b">
+    <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--dim);font-weight:600">
+      <input type="checkbox" id="peThinking" ${p.thinking_param?"checked":""} style="width:auto"> thinking_param — send chat_template_kwargs.thinking</label>
+    <div class="gap"></div>
+    <button class="primary" onclick="saveProvider()">Save provider</button>
+    <button class="ghost" onclick="hideProviderEditor()">Cancel</button>
+  </div>`;
+}
+function showProviderEditor(name){showProvEditor=true;editingProv=name||null;render();setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"}),30);}
+function hideProviderEditor(){showProvEditor=false;editingProv=null;render();}
+function editProvider(name){showProviderEditor(name);}
+function saveProvider(){
+  let key=$("#peKey").value;
+  if(!key && editingProv && state.providers[editingProv]){
+    // Blank means "keep current" — the field was rendered empty-on-purpose
+    // for an existing literal secret (see provEditorHtml) so the real value
+    // is never round-tripped through a visible/editable input.
+    key=state.providers[editingProv].key||"";
+  }
+  const prov={
+    url:$("#peUrl").value.trim(),
+    key,
+    ua:$("#peUa").value.trim(),
+    models:$("#peModels").value.split(",").map(s=>s.trim()).filter(Boolean),
+    thinking_param:$("#peThinking").checked,
+  };
+  if(!prov.url){toast("URL required","err");return;}
+  const name=$("#peName").value.trim()||editingProv;
+  if(!name){toast("Name required","err");return;}
+  const provs=JSON.parse(JSON.stringify(state.providers||{}));
+  provs[name]=prov;
+  applyProviders(provs);
+}
+async function delProvider(name){
+  const ok=await askConfirm("Delete provider",`Remove provider <b>${esc(name)}</b> and restart the shim? A snapshot is taken automatically.`,"Delete");
+  if(!ok) return;
+  const provs=JSON.parse(JSON.stringify(state.providers||{}));
+  delete provs[name];
+  applyProviders(provs);
+}
+function applyProviders(provs){
+  api("/api/providers",{method:"POST",body:JSON.stringify({providers:provs,restart:true})})
+    .then(()=>{toast("Providers saved","ok");showProvEditor=false;editingProv=null;refreshState();})
+    .catch(e=>toast(esc(e.message),"err"));
+}
+// Quick control: pull a provider out of the failover chain (its config —
+// URL/key/models — stays intact, it's just not currently tried) or put it
+// back, without the heavier "Delete provider" / re-add-from-scratch round
+// trip. Resume re-adds every model the provider currently lists (appended,
+// not restored to its exact prior position — reorder on the Chain tab if
+// that matters); Pause drops every chain entry pointing at it.
+async function toggleProviderInChain(name){
+  const inChain=state.chain.some(c=>c.split("@")[1]===name);
+  const verb=inChain?"Pause":"Resume";
+  const ok=await askConfirm(verb+" provider",
+    `${verb} <b>${esc(name)}</b> ${inChain?"by removing it from":"by adding its models back into"} the failover chain and restart the shim?`,
+    verb,false);
+  if(!ok) return;
+  let chain;
+  if(inChain){
+    chain=state.chain.filter(c=>c.split("@")[1]!==name);
+  }else{
+    const p=state.providers[name]||{};
+    chain=state.chain.slice();
+    for(const m of p.models||[]){
+      const entry=m+"@"+name;
+      if(!chain.includes(entry)) chain.push(entry);
+    }
+  }
+  try{
+    await api("/api/chain",{method:"POST",body:JSON.stringify({chain,restart:true})});
+    toast(verb+"d "+esc(name),"ok");refreshState();
+  }catch(e){toast(esc(e.message),"err");}
+}
+
+/* ================= keys ================= */
+// Derived from the live conf by naming convention (every provider secret ends
+// in "_KEY") instead of a hardcoded list — a hardcoded list silently stops
+// covering a var the moment a new provider is added (observed live: BAI_KEY
+// and BRAVE_KEY are real, currently-set secrets that a stale hardcoded list
+// here left with no row at all, so there was no UI path to ever update them).
+function keyVarsOf(conf){return Object.keys(conf||{}).filter(k=>/_KEY$/.test(k));}
+function viewKeys(){
+  if(!state) return "";
+  const keyVars=keyVarsOf(state.conf);
+  return `
+  <div class="hd"><h1>Keys</h1><p>Provider API keys · masked for safety · empty = keep current</p>
+    <div class="spacer"><button class="primary" onclick="saveKeys()">Save keys</button></div></div>
+  <div class="tablewrap mb"><table>
+    <thead><tr><th>Variable</th><th>Value (masked)</th><th style="min-width:220px">Update</th></tr></thead>
+    <tbody>${keyVars.map(k=>`<tr><td class="mono">${esc(k)}</td>
+      <td class="mono" style="color:var(--dim)">${esc(state.conf[k]||"-")}</td>
+      <td><input id="key-${k}" placeholder="new value" type="password" autocomplete="off"></td></tr>`).join("")}</tbody>
+  </table></div>
+  <p style="font-size:11.5px;color:var(--faint)">Saving applies keys to <code>/etc/conf.d/anthropic-shim</code>, syncs the secrets master and restarts the proxy. A snapshot is taken automatically.</p>`;
+}
+async function saveKeys(){
+  const keyVars=keyVarsOf(state.conf);
+  const confVars={}; let any=false;
+  for(const k of keyVars){
+    const v=$("#key-"+k)?.value.trim();
+    if(v){confVars[k]=v;any=true;}
+  }
+  if(!any){toast("No keys entered","info");return;}
+  const ok=await askConfirm("Update API keys",`Write <b>${Object.keys(confVars).length}</b> key(s) to the shim config and restart the proxy?`,"Save & restart",false);
+  if(!ok) return;
+  try{
+    await api("/api/apply",{method:"POST",body:JSON.stringify({confVars,restart:true})});
+    toast("Keys updated","ok");refreshState();
+  }catch(e){toast(esc(e.message),"err");}
+}
+
+/* ================= settings ================= */
+function viewSettings(){
+  if(!state) return "";
+  const e=state.settingsEnv||{};
+  return `
+  <div class="hd"><h1>Claude settings</h1><p><code>~/.claude/settings.json</code> env block</p>
+    <div class="spacer"><button class="primary" onclick="saveSettings()">Save all</button></div></div>
+  <div class="card mb"><input placeholder="Filter settings…" oninput="filterSettings(this.value)"></div>
+  <div class="card"><div id="settingsRows">
+    ${Object.entries(e).map(([k,v])=>settingsRowHtml(k,v)).join("")||'<span style="color:var(--faint);font-size:12px">no env settings</span>'}
+  </div>
+  <div class="gap"></div>
+  <button class="ghost" onclick="addSettingsRow()">＋ Add setting</button></div>
+  <p style="margin-top:10px;font-size:11.5px;color:var(--faint)">Empty value on an <code>ANTHROPIC_*</code> key removes it from the env block. Template settings stay in sync.</p>`;
+}
+function settingsRowHtml(k,v){
+  return `<div class="row2" style="margin-bottom:8px;grid-template-columns:1fr 1fr 42px">
+    <input class="skey" value="${esc(k)}" placeholder="KEY">
+    <input class="sval" value="${esc(v)}" placeholder="value">
+    <button class="ghost" style="padding:6px 0" title="Remove row" onclick="this.parentElement.remove()">✕</button></div>`;
+}
+function addSettingsRow(){$("#settingsRows").insertAdjacentHTML("beforeend",settingsRowHtml("",""));}
+function filterSettings(v){
+  const q=v.trim().toLowerCase();
+  $$("#settingsRows > div").forEach(row=>{
+    const k=$(".skey",row)?.value.toLowerCase()||"";
+    row.style.display=!q||k.includes(q)?"":"none";
+  });
+}
+async function saveSettings(){
+  const env={};
+  $$("#settingsRows > div").forEach(row=>{
+    const k=$(".skey",row)?.value.trim(), v=$(".sval",row)?.value.trim();
+    if(k)env[k]=v;
+  });
+  try{
+    await api("/api/apply",{method:"POST",body:JSON.stringify({settingsEnv:env})});
+    toast("Settings saved","ok");refreshState();
+  }catch(e){toast(esc(e.message),"err");}
+}
+
+/* ================= proxy & logs ================= */
+function viewProxy(){
+  if(!state) return "";
+  const s=state.status||{};
+  return `
+  <div class="hd"><h1>Proxy & Logs</h1><p>Service control and live shim log</p></div>
+  <div class="grid">
+    <div class="card row"><div class="k">Status</div><div class="v"><span class="pill green" data-live="proxy">● RUNNING</span></div><div class="sub">openrc · anthropic-shim</div></div>
+    <div class="card row"><div class="k">PID</div><div class="v mono" data-live="pid">-</div><div class="sub">/run/anthropic-shim.pid</div></div>
+    <div class="card row"><div class="k">Log last write</div><div class="v" style="font-size:14px">${s.logModified?fmtTime(s.logModified):"-"}</div><div class="sub">${s.logModified?rel(s.logModified):""}</div></div>
+  </div>
+  <div class="card mb"><div class="k" style="margin-bottom:10px">Controls</div>
+    <div class="btnrow">
+      <button onclick="doRestart()">⭮ Restart proxy</button>
+      <button class="ghost" onclick="refreshLog()">↻ Refresh log</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input id="logN" type="number" value="120" min="10" max="2000" style="width:90px">
+        <span style="font-size:11px;color:var(--faint)">lines</span>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--dim);margin:0;font-weight:600">
+        <input type="checkbox" id="logAuto" checked style="width:auto"> auto-scroll</label>
+    </div></div>
+  <div class="section-title">Live health <button class="ghost sm" style="margin-left:8px" onclick="loadShimHealth()">↻</button></div>
+  <div class="card mb" id="shimHealth"><span class="empty" style="font-size:11px;color:var(--faint)">loading…</span></div>
+  <div class="log-toolbar"><div class="legend">
+      <span><i style="background:var(--green)"></i>ok / attempt 1</span>
+      <span><i style="background:var(--amber)"></i>4xx / cooldown</span>
+      <span><i style="background:var(--red)"></i>5xx / connect fail</span></div></div>
+  <div class="log" id="logBox"><span class="t">loading…</span></div>`;
+}
+async function doRestart(){
+  const ok=await askConfirm("Restart proxy","Restart the <b>anthropic-shim</b> service? In-flight requests may fail.","Restart");
+  if(!ok) return;
+  toast("Restarting proxy…","info");
+  try{
+    const r=await api("/api/restart",{method:"POST"});
+    toast(r.alive?"Proxy restarted · healthy":"Restart command ran",r.alive?"ok":"info");
+    refreshState();refreshLog();
+  }catch(e){toast(esc(e.message),"err");}
+}
+async function refreshLog(){
+  const n=parseInt($("#logN")?.value||"120",10)||120;
+  try{
+    const r=await api("/api/log?n="+n);
+    const box=$("#logBox");
+    if(box) box.innerHTML=r.lines.map(lineColor).join("");
+    if(box&&$("#logAuto")?.checked){box.scrollTop=box.scrollHeight;}
+  }catch(e){toast(esc(e.message),"err");}
+}
+function lineColor(l){
+  let cls="";
+  if(/connect fail|upstream 5\d\d|exhausted|abort/i.test(l))cls="bad";
+  else if(/upstream 4\d\d|cooldown|429/.test(l))cls="warn";
+  else if(/=>|200|attempt 1/.test(l))cls="ok";
+  const sp=l.indexOf(" ");
+  const t=sp>0?l.slice(0,sp):"";
+  const rest=sp>0?l.slice(sp):l;
+  return `<span class="row"><span class="t">${esc(t)}</span>${cls?`<span class="${cls}">${esc(rest)}</span>`:esc(rest)}</span>`;
+}
+// Live health: the shim's OWN /health JSON (proxied via /api/shim-health), not
+// derived from log text like the stats/usage tabs — so cooldown state here is
+// always exactly what the shim is doing right now, including cooldowns still
+// in effect that haven't produced a new log line yet.
+async function loadShimHealth(){
+  const el=$("#shimHealth"); if(!el) return;
+  try{
+    const h=await api("/api/shim-health");
+    if(!h.ok){el.innerHTML=`<span class="empty" style="color:var(--red)">shim health unreachable — ${esc(h.error||"unknown error")}</span>`;return;}
+    const c=h.cache||{};
+    const tot=(c.hits||0)+(c.misses||0);
+    const hitRate=tot?Math.round(c.hits/tot*100):0;
+    const cooling=h.cooling||[];
+    el.innerHTML=`
+      <div class="grid">
+        <div class="card row"><div class="k">Uptime</div><div class="v mono">${fmtDur(h.uptime_s)}</div><div class="sub">since last restart</div></div>
+        <div class="card row"><div class="k">Response cache</div><div class="v">${c.entries||0}<span style="color:var(--faint);font-size:13px"> / ${c.max||0}</span></div><div class="sub">${hitRate}% hit rate · ${c.hits||0} hit · ${c.misses||0} miss · ${c.evicted||0} evicted</div></div>
+        <div class="card row"><div class="k">Cooling now</div><div class="v lg" style="color:${cooling.length?"var(--amber)":"var(--green)"}">${cooling.length}</div><div class="sub">provider/key targets in backoff</div></div>
+      </div>
+      ${cooling.length?`<div class="mb" style="margin-top:10px;display:flex;flex-direction:column;gap:6px">${cooling.map(x=>`
+        <div style="display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--dim)">
+          <span class="mono" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.target)}">${esc(x.target)}</span>
+          <span class="pill amber">${esc(x.kind)}</span>
+          <span style="color:var(--faint)">strike ${x.strikes}</span>
+          <span style="text-align:right;min-width:70px;font-variant-numeric:tabular-nums;color:var(--text)">${fmt(x.ms_left)} left</span>
+        </div>`).join("")}</div>`
+      :`<div class="empty" style="font-size:11px;color:var(--faint);margin-top:8px">all providers healthy — nothing cooling</div>`}`;
+  }catch(e){el.innerHTML=`<span class="empty" style="color:var(--red)">${esc(e.message)}</span>`;}
+}
+
+/* ================= snapshots ================= */
+function viewSnapshots(){
+  return `
+  <div class="hd"><h1>Snapshots</h1><p>Point-in-time config captures · revert anytime</p>
+    <div class="spacer"><button class="primary" onclick="makeSnap()">＋ Snapshot now</button>
+    <button class="ghost" onclick="refreshSnaps()">↻ Refresh</button></div></div>
+  <div id="snapList"><span style="color:var(--faint);font-size:12px">loading…</span></div>`;
+}
+function snapRow(s){
+  return `<div class="snap">
+    <span class="id">${esc(s.id)}</span>
+    ${s.label?`<span class="chip">${esc(s.label)}</span>`:""}
+    <span class="when" title="${esc(fmtTime(s.mtime))}">${esc(rel(s.mtime))}</span>
+    <span class="acts"><button class="ghost sm" onclick="viewSnap('${esc(s.id)}')">View</button>
+    <button class="danger sm" onclick="revertSnap('${esc(s.id)}')">Revert</button></span>
+  </div>`;
+}
+async function refreshSnaps(){
+  try{
+    const r=await api("/api/snapshots");
+    $("#snapList").innerHTML=r.snapshots.map(snapRow).join("")||'<span style="color:var(--faint);font-size:12px">no snapshots yet</span>';
+  }catch(e){toast(esc(e.message),"err");}
+}
+async function makeSnap(quiet){
+  try{
+    const r=await api("/api/snapshot",{method:"POST",body:JSON.stringify({label:"manual"})});
+    if(!quiet)toast("Snapshot "+esc(r.id),"ok");
+    if(activeTab==="snapshots")refreshSnaps();
+    return r.id;
+  }catch(e){toast(esc(e.message),"err");}
+}
+async function revertSnap(id){
+  const ok=await askConfirm("Revert config",`Revert config to snapshot <b>${esc(id)}</b>?<br>Current state is auto-snapshotted first, then the proxy restarts.`,"Revert");
+  if(!ok) return;
+  toast("Reverting…","info");
+  try{
+    await api("/api/revert",{method:"POST",body:JSON.stringify({id})});
+    toast("Reverted to "+esc(id),"ok");refreshState();
+  }catch(e){toast(esc(e.message),"err");}
+}
+async function viewSnap(id){
+  try{
+    const r=await api("/api/snapshot/"+encodeURIComponent(id));
+    let setTxt=r.settings||"";
+    try{setTxt=JSON.stringify(JSON.parse(setTxt),null,2);}catch{}
+    openModal(`<div class="modal-head"><h3>${esc(r.label||r.id)}</h3><span class="chip">${esc(r.id)}</span>
+        <button class="icon-btn" onclick="modalResolve(false)">✕</button></div>
+      <div class="modal-body">
+        <div class="k" style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--faint);margin-bottom:6px">anthropic-shim.conf</div>
+        <pre class="code" id="snapConf">${esc(r.conf||"(empty)")}</pre>
+        <div class="k" style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--faint);margin:14px 0 6px">settings.json</div>
+        <pre class="code">${esc(setTxt||"(empty)")}</pre>
+      </div>
+      <div class="modal-foot"><button class="ghost" onclick="copyText(document.getElementById('snapConf').textContent)">Copy conf</button>
+      <button class="primary" onclick="modalResolve(false)">Close</button></div>`);
+  }catch(e){toast(esc(e.message),"err");}
+}
+
+/* ================= services ================= */
+let servicesCache=null;
+function viewServices(){
+  const svc=(servicesCache&&servicesCache.services)||[];
+  if(!svc.length) return `<div class="hd"><h1>Services</h1><p>Health + control for every rig daemon</p></div><div class="card"><span class="empty">loading services…</span></div>`;
+  return `
+  <div class="hd"><h1>Services</h1><p>Every rig daemon — probe + restart from one place</p></div>
+  <div class="grid">
+    ${svc.map(s=>`
+    <div class="card row service-card ${s.running?"":"down"}">
+      <div class="srv-top"><div class="k">${esc(s.label)}</div>
+        <span class="pill ${s.running?"green":"red"}">${s.running?"● UP":"○ DOWN"}</span></div>
+      <div class="v mono">${s.running?(s.pid?("pid "+s.pid):"listening"):"not running"}</div>
+      <div class="sub">${esc(s.role||"")}${s.port?" · :"+s.port:""}</div>
+      <div class="srv-actions">
+        <button class="${!s.running&&s.restartable?"primary":"ghost"} sm" onclick="svcRestart('${esc(s.name)}')" ${s.restartable?"":"disabled title='probe-only (not restart-managed)'"}>⭮ Restart</button>
+      </div>
+    </div>`).join("")}
+  </div>
+  <div class="card note-card" style="margin-top:14px">
+    <div class="k" style="margin-bottom:6px">Notes</div>
+    <p><b>Shim proxy</b> and <b>Dashboard</b> are OpenRC-managed (restartable). MCP sidecars (Burp :9876, Caido :3333, Browser :8089) are probe-only — they show health but aren't service-managed here.
+    <b style="color:var(--amber)">Bifrost</b> shows <span class="chip red">Down</span> — its OpenRC unit exists in the repo but is not registered/enabled on this host.</p>
+  </div>`;
+}
+async function loadServices(){
+  try{servicesCache=await api("/api/services");$("#main").innerHTML=`<div class="page">${viewServices()}</div>`;}
+  catch(e){toast(esc(e.message),"err");}
+}
+async function svcRestart(name){
+  if(!(await askConfirm("Restart service",`Restart <b>${esc(name)}</b>? Config is snapshotted before managed restarts.`,"Restart",true))) return;
+  try{
+    const r=await api("/api/service/restart",{method:"POST",body:JSON.stringify({name})});
+    toast(r.ok?("⭮ "+esc(name)+" restarting… "+(r.note||r.cmdOut||"")):("restart failed: "+esc(r.error||"")),(r.ok?"ok":"err"));
+    if(r.ok){setTimeout(async()=>{await loadServices();},1200);}
+  }catch(e){toast(esc(e.message),"err");}
+}
+
+/* ================= budget ================= */
+let budgetCache=null;
+function viewBudget(){
+  const b=budgetCache||{};
+  const provs=b.providers||[];
+  const fmtTok=n=>n==null?"-":(n>1e6?(n/1e6).toFixed(2)+"M":n>1e3?(n/1e3).toFixed(1)+"k":String(n));
+  return `
+  <div class="hd"><h1>Budget</h1><p>Spend caps + live token meter (per session tail)</p></div>
+  <div class="grid">
+    <div class="card row"><div class="k">Daily tokens</div><div class="v lg">${fmtTok(b.dailyTokens)}</div>
+      <div class="sub">cap: ${b.dailyCap?fmtTok(b.dailyCap):"<span style='color:var(--amber)'>unset</span>"} · ${b.dailyOver?'<span style="color:var(--red)">OVER CAP</span>':'<span style="color:var(--green)">within</span>'}</div></div>
+    <div class="card row"><div class="k">Request rate</div><div class="v lg">${b.reqRecent??"-"}/min</div>
+      <div class="sub">limit: ${b.reqPerMin?b.reqPerMin+"/min":"<span style='color:var(--amber)'>unset</span>"}</div></div>
+  </div>
+  <div class="section-title">Per-provider caps</div>
+  <div class="card mb">
+    ${provs.length?provs.map(p=>`
+      <div class="bprov ${p.over?'over':''}">
+        <div class="bp-head">
+          <b>${esc(p.provider)}</b>
+          <span class="tok">${fmtTok(p.total)} tokens ${p.over?'<span class="pill red">OVER</span>':''}</span>
+        </div>
+        <div class="mini" style="margin-top:6px">
+          <label>cap (tokens)</label>
+          <input class="projCap" data-prov="${esc(p.provider)}" value="${p.cap||""}" placeholder="0 = unlimited"/>
+        </div>
+      </div>`).join(""):'<span class="empty">no provider usage in recent log</span>'}
+    <div class="row2" style="margin-top:14px">
+      <div class="mini"><label>daily cap (tokens)</label><input id="budgetDaily" value="${b.dailyCap||""}" placeholder="0 = unlimited"/></div>
+      <div class="mini"><label>req/min cap</label><input id="budgetRpm" value="${b.reqPerMin||""}" placeholder="0 = unlimited"/></div>
+    </div>
+    <div class="budget-actions">
+      <button class="primary" onclick="saveBudget()">Save caps</button>
+      <button class="ghost" onclick="loadBudget()">Refresh</button>
+    </div>
+  </div>`;
+}
+async function loadBudget(){
+  try{budgetCache=await api("/api/budget");$("#main").innerHTML=`<div class="page">${viewBudget()}</div>`;}
+  catch(e){toast(esc(e.message),"err");}
+}
+async function saveBudget(){
+  const provs={};
+  $$(".projCap").forEach(inp=>{const p=inp.dataset.prov,v=+inp.value;if(v>0)provs[p]=v;});
+  const daily=+($("#budgetDaily").value||0);
+  const rpm=+($("#budgetRpm").value||0);
+  try{
+    const r=await api("/api/budget",{method:"POST",body:JSON.stringify({dailyTokens:daily,providers:provs,reqPerMin:rpm})});
+    toast("Budget saved"+(r.applied&&r.applied.length?" (applied: "+r.applied.join(", ")+")":""),"ok");
+    budgetCache=await api("/api/budget");$("#main").innerHTML=`<div class="page">${viewBudget()}</div>`;
+  }catch(e){toast(esc(e.message),"err");}
+}
+
+/* ================= alerts ================= */
+let alertsCache=null;
+function viewAlerts(){
+  const a=alertsCache||{};const rules=(a.rules&&a.rules.length?a.rules:[])||[];
+  return `
+  <div class="hd"><h1>Alerts</h1><p>Threshold rules + auto-recovery · every firing is snapshotted &amp; audited</p>
+    <div class="spacer"><span style="color:var(--faint);font-size:11px">${a.lastEval?"last checked "+rel(a.lastEval):"not yet evaluated"}</span>
+    <button class="primary" onclick="runAlertEval()">Run check now</button>
+    <button class="ghost" onclick="saveAlerts()">Save rules</button></div></div>
+  <div class="section-title">Rules</div>
+  <div class="card mb">
+    ${rules.map((r,i)=>`
+    <div class="arule">
+      <input type="checkbox" class="a-en" data-i="${i}" ${r.enabled?'checked':''}/>
+      <div class="a-body">
+        <div class="a-head">
+          <b>${esc(r.name)}</b>
+          <span class="chip">${esc(r.kind)}</span>
+          ${r.action&&r.action!=="none"?`<span class="chip cyan">auto: ${esc(r.action)}</span>`:""}
+        </div>
+        <div class="a-desc">
+          ${r.kind==="service"
+            ? `target <b style="color:var(--text)">${esc(r.target||"")}</b>`
+            : `${esc(r.metric||"")} > <b style="color:var(--text)">${esc(r.over||"")}</b> in ${r.windowS?esc(r.windowS)+"s":""}`}
+        </div>
+      </div>
+    </div>`).join("")||'<span class="empty">no rules</span>'}
+  </div>
+  <div class="section-title">Event log <span style="color:var(--faint);font-weight:400">(last ${Math.min((a.events||[]).length,10)})</span></div>
+  <div class="card mb" style="min-height:40px">
+    ${(a.events||[]).length?(a.events||[]).slice(0,10).map(e=>`
+      <div class="evt-row">
+        <span class="when">${rel(e.at)}</span>
+        <span class="chip ${e.ok?'green':e.ok===false?'red':''}">${esc(e.kind)}</span>
+        <span class="msg">${esc(e.msg||"")}</span>
+        ${e.action&&e.action!=="none"?`<span class="chip cyan">${esc(e.action)}</span>`:""}
+      </div>`).join(""):'<span class="empty">no events yet — run a check</span>'}
+  </div>`;
+}
+async function loadAlerts(){
+  try{alertsCache=await api("/api/alerts");$("#main").innerHTML=`<div class="page">${viewAlerts()}</div>`;}
+  catch(e){toast(esc(e.message),"err");}
+}
+async function runAlertEval(){
+  toast("Running alert check…");
+  try{
+    const r=await api("/api/alert/eval",{method:"POST"});
+    if(r.fired&&r.fired.length)toast(r.fired.map(x=>x.msg).join("; "),(r.fired.every(x=>x.ok))?"ok":"err");
+    else toast("Check complete — no alerts fired","ok");
+    alertsCache=await api("/api/alerts");
+    $("#main").innerHTML=`<div class="page">${viewAlerts()}</div>`;
+  }catch(e){toast(esc(e.message),"err");}
+}
+async function saveAlerts(){
+  if(!alertsCache||!alertsCache.rules)return;
+  const rules=alertsCache.rules.map((r,i)=>({...r,enabled:!!($$(".a-en")[i]&&$$(".a-en")[i].checked)}));
+  try{const x=await api("/api/alerts",{method:"POST",body:JSON.stringify({rules})});toast("Alert rules saved","ok");alertsCache=await api("/api/alerts");$("#main").innerHTML=`<div class="page">${viewAlerts()}</div>`;}
+  catch(e){toast(esc(e.message),"err");}
+}
+
+/* ================= auth gate ================= */
+/* Auth is handled in window.onload (probe /api/auth, then refreshState or login). */
+</script>
+</body>
+</html>

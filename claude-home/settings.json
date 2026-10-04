@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:9086",
+    "ANTHROPIC_API_KEY": "bifrost-local",
+    "ANTHROPIC_MODEL": "glm-5.3-flash",
+    "ANTHROPIC_SMALL_FAST_MODEL": "groq/compound-mini",
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "100000",
+    "API_TIMEOUT_MS": "300000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__caido__*",
+      "mcp__burp__*",
+      "mcp__browser-control__*",
+      "mcp__playwright__*",
+      "mcp__sequential-thinking__*",
+      "Read",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [],
+    "defaultMode": "acceptEdits"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/root/.claude/memory/capture.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/root/.claude/memory/capture.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -n \"$(ls -A /root/.claude/memory/inbox/ 2>/dev/null)\" && echo 'auto-memory: pending captures in ~/.claude/memory/inbox/ \u2014 run /learn to curate' || true"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "jq -r '[(.model.display_name // \"\"), ((.workspace.current_dir // .cwd // \"\") | split(\"/\") | last), (if ((.cost.total_lines_added // 0) != 0) then \"+\\(.cost.total_lines_added)/-\\(.cost.total_lines_removed)\" else \"\" end)] | map(select(length > 0)) | join(\"  \\u2502  \")'"
+  },
+  "spinnerTipsEnabled": true,
+  "spinnerVerbs": {
+    "mode": "append",
+    "verbs": [
+      "Enumerating",
+      "Fuzzing",
+      "Triaging",
+      "Chaining",
+      "Reconning",
+      "Probing"
+    ]
+  },
+  "syntaxHighlightingDisabled": false,
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "xhigh",
+  "promptSuggestionEnabled": true,
+  "emojiCompletionEnabled": true,
+  "askUserQuestionTimeout": "10m",
+  "autoCompactEnabled": true,
+  "precomputeCompactionEnabled": true,
+  "fileCheckpointingEnabled": true,
+  "showTurnDuration": true,
+  "showMessageTimestamps": true,
+  "terminalProgressBarEnabled": true,
+  "todoFeatureEnabled": true,
+  "model": "glm-5.3-flash"
+}

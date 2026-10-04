@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+
+name="bifrost"
+description="Bifrost LLM gateway (Claude Code upstream proxy)"
+command="/root/.cache/bifrost/v1.6.11/bin/bifrost-http-0"
+command_args="--port 9084"
+command_background="yes"
+pidfile="/run/bifrost.pid"
+output_log="/var/log/bifrost.log"
+error_log="/var/log/bifrost.log"
+
+depend() {
+	need net
+	use logger
+}

@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(:)",
+      "Bash(rm -f ~/.claude/memory/inbox/SessionStart-*.jsonl)",
+      "Bash(rm -f ~/.claude/memory/.capture-state)",
+      "Bash(DEST=/root/.claude/jobs/991d23e9/tmp/cbh-port/skills && rm -rf \"$DEST/offensive-osint\" && cp -r /root/.claude/jobs/991d23e9/tmp/claude-bughunter/skills/offensive-osint \"$DEST/offensive-osint\" && echo \"===clean copy===\"; ls \"$DEST/offensive-osint/\"; echo; echo \"===references intact===\"; ls \"$DEST/offensive-osint/references/\" | wc -l; echo \"===scripts intact===\"; ls \"$DEST/offensive-osint/scripts/\")",
+      "Bash(cp *)",
+      "Bash(cp windows-process-detach/SKILL.md /root/.claude/jobs/b9e31fae/tmp/skills-backup/windows-process-detach-SKILL.md)",
+      "Bash(python3 -)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "burp",
+    "caido",
+    "sequential-thinking",
+    "playwright",
+    "browser-control"
+  ]
+}
